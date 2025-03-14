@@ -1,0 +1,416 @@
+#include <Arduino.h>
+#include <MPU6050.h>
+#include <Wire.h>
+#include <math.h>
+#include <WiFi.h>
+#include <ESPAsyncWebServer.h>
+#include <AsyncTCP.h>
+#include <VL53L0X.h>
+
+// Define I2C pins for ESP32
+#define SDA_PIN 21
+#define SCL_PIN 22
+
+// Create sensor instances
+MPU6050 mpu;
+VL53L0X distanceSensor;
+
+// WiFi credentials for Access Point
+const char* ssid = "ESP32_Gyroscope";
+const char* password = "12345678";  // At least 8 characters
+
+// Create AsyncWebServer object on port 80
+AsyncWebServer server(80);
+AsyncWebSocket ws("/ws");
+
+// Variables for MPU6050
+// Calibration variables
+int16_t ax_offset, ay_offset, az_offset;
+int16_t gx_offset, gy_offset, gz_offset;
+
+// Angle calculation variables
+float roll = 0, pitch = 0, yaw = 0;
+unsigned long lastTime = 0;
+float dt = 0;
+float gyroScale = 131.0; // For sensitivity +/- 250 degrees/s
+
+// VL53L0X distance variable
+uint16_t distance = 0; // in millimeters
+
+// Improved settings for better precision
+#define GYRO_SENSITIVITY MPU6050_GYRO_FS_250
+#define ACCEL_SENSITIVITY MPU6050_ACCEL_FS_2
+#define SAMPLE_RATE 100 // Hz
+#define LOW_PASS_FILTER MPU6050_DLPF_BW_20 // 20Hz low-pass filter
+
+// Temperature compensation
+float tempOffset = 0;
+float tempScale = 1.0;
+
+// Function to handle WebSocket events
+void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, 
+               AwsEventType type, void *arg, uint8_t *data, size_t len) {
+  if (type == WS_EVT_CONNECT) {
+    Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
+  } else if (type == WS_EVT_DISCONNECT) {
+    Serial.printf("WebSocket client #%u disconnected\n", client->id());
+  }
+}
+
+// HTML webpage with JavaScript to display data
+const char index_html[] PROGMEM = R"rawliteral(
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>ESP32 Sensor Data</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin: 0px auto; padding: 20px; }
+    .card { background-color: #F8F7F9; box-shadow: 2px 2px 12px 1px rgba(140,140,140,.5); 
+            padding: 20px; border-radius: 5px; margin-bottom: 20px; }
+    .readings { font-size: 2rem; }
+    canvas { margin-top: 20px; border: 1px solid #ddd; }
+    .distance-container { margin-top: 20px; position: relative; height: 40px; }
+    .distance-bar { background: linear-gradient(to right, #00ff00, #ff0000); 
+                   height: 20px; border-radius: 10px; }
+    .distance-marker { position: absolute; top: 0; width: 2px; height: 30px; 
+                      background-color: #000; transform: translateX(-50%); }
+    .distance-label { position: absolute; top: 30px; transform: translateX(-50%); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>ESP32 MPU6050 Gyroscope Data</h2>
+    <div class="readings">
+      <span>ROLL: </span><span id="roll">0</span>°<br>
+      <span>PITCH: </span><span id="pitch">0</span>°<br>
+      <span>YAW: </span><span id="yaw">0</span>°<br>
+    </div>
+  </div>
+  
+  <div class="card">
+    <h2>Distance Sensor (VL53L0X)</h2>
+    <div class="readings">
+      <span>DISTANCE: </span><span id="distance">0</span> mm
+    </div>
+    <div class="distance-container">
+      <div class="distance-bar" id="distance-bar" style="width: 100%;"></div>
+      <div class="distance-marker" style="left: 0%;">
+        <div class="distance-label">0</div>
+      </div>
+      <div class="distance-marker" style="left: 25%;">
+        <div class="distance-label">500</div>
+      </div>
+      <div class="distance-marker" style="left: 50%;">
+        <div class="distance-label">1000</div>
+      </div>
+      <div class="distance-marker" style="left: 75%;">
+        <div class="distance-label">1500</div>
+      </div>
+      <div class="distance-marker" style="left: 100%;">
+        <div class="distance-label">2000</div>
+      </div>
+      <div class="distance-marker" id="current-distance" style="left: 0%; background-color: blue;"></div>
+    </div>
+  </div>
+  
+  <div class="card">
+    <h2>Orientation Visualization</h2>
+    <canvas id="canvas" width="300" height="300"></canvas>
+  </div>
+
+<script>
+  var gateway = `ws://${window.location.hostname}/ws`;
+  var websocket;
+  
+  window.addEventListener('load', onLoad);
+  
+  function initWebSocket() {
+    console.log('Trying to open a WebSocket connection...');
+    websocket = new WebSocket(gateway);
+    websocket.onopen = onOpen;
+    websocket.onclose = onClose;
+    websocket.onmessage = onMessage;
+  }
+  
+  function onOpen(event) {
+    console.log('Connection opened');
+  }
+  
+  function onClose(event) {
+    console.log('Connection closed');
+    setTimeout(initWebSocket, 2000);
+  }
+  
+  function onMessage(event) {
+    var data = JSON.parse(event.data);
+    document.getElementById('roll').innerHTML = data.roll.toFixed(2);
+    document.getElementById('pitch').innerHTML = data.pitch.toFixed(2);
+    document.getElementById('yaw').innerHTML = data.yaw.toFixed(2);
+    document.getElementById('distance').innerHTML = data.dist;
+    
+    // Update distance visualization (mapping 0-2000mm to 0-100%)
+    var distPercent = Math.min(data.dist / 2000 * 100, 100);
+    document.getElementById('current-distance').style.left = distPercent + '%';
+    
+    // Update orientation visualization
+    drawOrientation(data.roll, data.pitch, data.yaw);
+  }
+  
+  function onLoad(event) {
+    initWebSocket();
+    initCanvas();
+  }
+  
+  // Simple 3D cube visualization
+  var canvas, ctx;
+  function initCanvas() {
+    canvas = document.getElementById('canvas');
+    ctx = canvas.getContext('2d');
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#000000';
+    ctx.fillStyle = 'rgba(0, 150, 255, 0.5)';
+  }
+  
+  function drawOrientation(roll, pitch, yaw) {
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const size = 100;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Convert degrees to radians
+    roll = roll * Math.PI / 180;
+    pitch = pitch * Math.PI / 180;
+    yaw = yaw * Math.PI / 180;
+    
+    // Draw simple indicator for orientation
+    ctx.save();
+    ctx.translate(centerX, centerY);
+    ctx.rotate(roll);  // Roll rotation
+    
+    // Draw rectangle representing the device
+    ctx.fillRect(-size/2, -size/4, size, size/2);
+    ctx.strokeRect(-size/2, -size/4, size, size/2);
+    
+    // Draw direction indicator
+    ctx.beginPath();
+    ctx.moveTo(size/2, 0);
+    ctx.lineTo(size/2 + 20, 0);
+    ctx.stroke();
+    
+    // Draw pitch indicator
+    ctx.beginPath();
+    ctx.moveTo(-size/2, 0);
+    ctx.lineTo(-size/2 - 20 * Math.sin(pitch), 0 - 20 * Math.cos(pitch));
+    ctx.stroke();
+    
+    ctx.restore();
+  }
+</script>
+</body>
+</html>
+)rawliteral";
+
+void calibrateMPU6050() {
+  int16_t ax, ay, az, gx, gy, gz;
+  int32_t ax_sum = 0, ay_sum = 0, az_sum = 0;
+  int32_t gx_sum = 0, gy_sum = 0, gz_sum = 0;
+  
+  Serial.println("Calibrating MPU6050...");
+  Serial.println("Please keep the sensor still on a flat surface.");
+  delay(2000); // Give user time to position sensor
+  
+  // Take multiple readings for averaging
+  const int num_samples = 1000;
+  for(int i = 0; i < num_samples; i++) {
+    mpu.getAcceleration(&ax, &ay, &az);
+    mpu.getRotation(&gx, &gy, &gz);
+    
+    ax_sum += ax;
+    ay_sum += ay;
+    az_sum += az - 16384; // Remove 1g from z-axis (when flat)
+    gx_sum += gx;
+    gy_sum += gy;
+    gz_sum += gz;
+    
+    if(i % 100 == 0) {
+      Serial.print(".");
+    }
+    delay(2);
+  }
+  
+  // Calculate offsets
+  ax_offset = ax_sum / num_samples;
+  ay_offset = ay_sum / num_samples;
+  az_offset = az_sum / num_samples;
+  gx_offset = gx_sum / num_samples;
+  gy_offset = gy_sum / num_samples;
+  gz_offset = gz_sum / num_samples;
+  
+  Serial.println();
+  Serial.println("Calibration complete!");
+  Serial.print("Accel offsets: X=");
+  Serial.print(ax_offset);
+  Serial.print(" Y=");
+  Serial.print(ay_offset);
+  Serial.print(" Z=");
+  Serial.println(az_offset);
+  
+  Serial.print("Gyro offsets: X=");
+  Serial.print(gx_offset);
+  Serial.print(" Y=");
+  Serial.print(gy_offset);
+  Serial.print(" Z=");
+  Serial.println(gz_offset);
+
+  // Add temperature reading at calibration for later compensation
+  int16_t temperature = mpu.getTemperature();
+  tempOffset = temperature;
+  
+  Serial.print("Temperature at calibration: ");
+  Serial.println(temperature / 340.0 + 36.53); // Convert to Celsius
+}
+
+void setup() {
+  // Initialize serial communication for debugging
+  Serial.begin(115200);
+  while (!Serial); // Wait for serial connection
+  
+  Serial.println("Initializing I2C devices...");
+  
+  // Initialize I2C bus
+  Wire.begin(SDA_PIN, SCL_PIN);
+  
+  // Initialize MPU6050
+  Serial.println("Initializing MPU6050...");
+  mpu.initialize();
+  
+  // Verify connection
+  Serial.println(mpu.testConnection() ? "MPU6050 connection successful" : "MPU6050 connection failed");
+  
+  // Calibrate the MPU6050
+  calibrateMPU6050();
+
+  // Configure MPU6050 with improved settings
+  mpu.setFullScaleGyroRange(GYRO_SENSITIVITY);
+  mpu.setFullScaleAccelRange(ACCEL_SENSITIVITY);
+  mpu.setDLPFMode(LOW_PASS_FILTER);
+  mpu.setRate(1000 / SAMPLE_RATE - 1); // Set sample rate divider
+  
+  Serial.println("MPU6050 configured for maximum precision");
+
+  // Initialize VL53L0X
+  Serial.println("Initializing VL53L0X...");
+  distanceSensor.setTimeout(500);
+  if (!distanceSensor.init()) {
+    Serial.println("Failed to detect and initialize VL53L0X!");
+    while (1);
+  }
+  distanceSensor.startContinuous();
+
+  // Set up Access Point
+  Serial.println("Setting up Access Point...");
+  WiFi.softAP(ssid, password);
+  IPAddress IP = WiFi.softAPIP();
+  Serial.print("AP IP address: ");
+  Serial.println(IP);
+  
+  // Set up WebSocket handler
+  ws.onEvent(onWsEvent);
+  server.addHandler(&ws);
+  
+  // Route for root / web page
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send_P(200, "text/html", index_html);
+  });
+  
+  // Start server
+  server.begin();
+  Serial.println("HTTP server started");
+}
+
+void loop() {
+  // Calculate time since last reading with microsecond precision
+  unsigned long currentTime = micros();
+  dt = (currentTime - lastTime) / 1000000.0; // Convert to seconds
+  lastTime = currentTime;
+  
+  // Read values
+  int16_t ax, ay, az, gx, gy, gz, temp;
+  mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+  temp = mpu.getTemperature();
+  
+  // Temperature compensation for gyro drift
+  float tempDiff = temp - tempOffset;
+  float tempFactor = 1.0 + (tempDiff * 0.0001); // Adjust this coefficient based on testing
+  
+  // Apply calibration offsets
+  ax -= ax_offset;
+  ay -= ay_offset;
+  az -= az_offset;
+  gx = (gx - gx_offset) * tempFactor;
+  gy = (gy - gy_offset) * tempFactor;
+  gz = (gz - gz_offset) * tempFactor;
+  
+  // Calculate angles from accelerometer
+  float accel_roll = atan2(ay, az) * 180.0 / M_PI;
+  float accel_pitch = atan2(-ax, sqrt(ay*ay + az*az)) * 180.0 / M_PI;
+  
+  // Convert gyro values to degrees/sec
+  float gyro_roll_rate = gx / gyroScale;
+  float gyro_pitch_rate = gy / gyroScale;
+  float gyro_yaw_rate = gz / gyroScale;
+  
+  // Adaptive complementary filter - adjust alpha based on acceleration magnitude
+  float accel_magnitude = sqrt(ax*ax + ay*ay + az*az);
+  float ideal_gravity = 16384; // At 2g sensitivity
+  float accel_deviation = abs(accel_magnitude - ideal_gravity) / ideal_gravity;
+  
+  // Adjust alpha - less weight to accelerometer during high acceleration
+  float alpha = 0.98;
+  if (accel_deviation > 0.1) {
+    alpha = 0.995; // More weight to gyro during movement
+  }
+  
+  // Apply complementary filter
+  roll = alpha * (roll + gyro_roll_rate * dt) + (1 - alpha) * accel_roll;
+  pitch = alpha * (pitch + gyro_pitch_rate * dt) + (1 - alpha) * accel_pitch;
+  yaw += gyro_yaw_rate * dt; // Gyro only for yaw
+  
+  // Print angles with higher precision
+  Serial.print("Roll: "); 
+  Serial.print(roll, 3); // 3 decimal places
+  Serial.print("\tPitch: "); 
+  Serial.print(pitch, 3);
+  Serial.print("\tYaw: "); 
+  Serial.println(yaw, 3);
+  
+  // Read distance from VL53L0X
+  distance = distanceSensor.readRangeContinuousMillimeters();
+  if (distanceSensor.timeoutOccurred()) {
+    Serial.print(" VL53L0X timeout!");
+  } else {
+    Serial.print("\tDistance: ");
+    Serial.print(distance);
+    Serial.println(" mm");
+  }
+  
+  // Send data via WebSocket every 50ms (20Hz update rate for the web)
+  static unsigned long lastUpdate = 0;
+  if (currentTime - lastUpdate > 50000) {
+    if (ws.count() > 0) {  // Only send if clients are connected
+      char jsonBuffer[150];
+      sprintf(jsonBuffer, "{\"roll\":%.2f,\"pitch\":%.2f,\"yaw\":%.2f,\"dist\":%u}", roll, pitch, yaw, distance);
+      ws.textAll(jsonBuffer);
+    }
+    lastUpdate = currentTime;
+  }
+  
+  // Precise timing using delayMicroseconds
+  int usDelay = (1000000 / SAMPLE_RATE) - (micros() - currentTime);
+  if (usDelay > 0) {
+    delayMicroseconds(usDelay);
+  }
+}
