@@ -2,23 +2,39 @@
 #define RC_DRIVER_H
 
 #include "inc/RcDriverStrategy.h"
+#include <Arduino.h>
+
+// Data structure for RC channels
+struct RcChannelData {
+    static const int MAX_CHANNELS = 16;
+    int channels[MAX_CHANNELS] = {0};
+    unsigned long lastUpdateTime = 0;
+    bool isValid = false;
+};
 
 class RcDriver {
 private:
-    RcDriverStrategy* strategy; // Current strategy
+    RcDriverStrategy* strategy;
+    RcChannelData channelData;
+    
+    // Buffer for serial data
+    static const int BUFFER_SIZE = 64;
+    uint8_t serialBuffer[BUFFER_SIZE];
+    int bufferIndex = 0;
 
 public:
-    // Constructor
-    RcDriver(RcDriverStrategy* strategy = nullptr) : strategy(strategy) {}
-
-    // Destructor
-    ~RcDriver() {}
-
-    // Set the strategy
+    RcDriver();
+    ~RcDriver();
+    
     void setStrategy(RcDriverStrategy* strategy);
-    // Execute strategy operations
     void encode();
     void decode();
+    
+    // Data access methods
+    const RcChannelData* getData() const { return &channelData; }
+    
+    // Serial handling
+    void beginSerial(int baudRate = 115200);
 };
 
 #endif // RC_DRIVER_H

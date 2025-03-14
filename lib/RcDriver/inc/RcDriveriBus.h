@@ -1,12 +1,11 @@
-#ifndef RC_DRIVER_IBUS_H
-#define RC_DRIVER_IBUS_H
-
+#pragma once
 #include "RcDriverStrategy.h"
+#include "../RcDriver.h"  // For RcChannelData definition
 
-class RcDriveriBus : public RcDriverStrategy
-{
-    void decode() override;
+class RcDriveriBus : public RcDriverStrategy {
+public:
+    RcDriveriBus() = default;
     void encode() override;
+    void decode() override;
+    void decodeBuffer(uint8_t* buffer, int length, RcChannelData* data) override;
 };
-
-#endif // RC_DRIVER_IBUS_H
