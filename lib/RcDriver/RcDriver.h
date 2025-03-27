@@ -1,40 +1,36 @@
-#ifndef RC_DRIVER_H
-#define RC_DRIVER_H
+#pragma once
 
 #include "inc/RcDriverStrategy.h"
 #include <Arduino.h>
 
-// Data structure for RC channels
-struct RcChannelData {
-    static const int MAX_CHANNELS = 16;
-    int channels[MAX_CHANNELS] = {0};
-    unsigned long lastUpdateTime = 0;
-    bool isValid = false;
-};
+#define RX2_PIN 16  // ESP32 RX2 pin (GPIO16)
+#define TX2_PIN 17  // ESP32 TX2 pin (GPIO17)
 
 class RcDriver {
 private:
     RcDriverStrategy* strategy;
-    RcChannelData channelData;
+    unsigned long lastPacketTime;
     
-    // Buffer for serial data
-    static const int BUFFER_SIZE = 64;
-    uint8_t serialBuffer[BUFFER_SIZE];
-    int bufferIndex = 0;
-
 public:
+    // Constructor/Destructor
     RcDriver();
     ~RcDriver();
     
-    void setStrategy(RcDriverStrategy* strategy);
-    void encode();
-    void decode();
+    // Initialize serial communication
+    void begin(int baudRate = 115200);
     
-    // Data access methods
-    const RcChannelData* getData() const { return &channelData; }
+    // Set strategy method (for changing protocols)
+    void setStrategy(RcDriverStrategy* newStrategy);
     
-    // Serial handling
-    void beginSerial(int baudRate = 115200);
+    // Process incoming data from serial port
+    void update();
+    
+    // Get the latest RC data from the strategy
+    RcInfo getRcInfo();
+    
+    // Send RC data (if supported by protocol)
+    bool sendRcInfo(const RcInfo& info);
+    
+    // Get time since last received packet (delegates to strategy)
+    unsigned long getTimeSinceLastRx();
 };
-
-#endif // RC_DRIVER_H
