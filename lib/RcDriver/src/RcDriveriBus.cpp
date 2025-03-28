@@ -2,6 +2,11 @@
 #include <Arduino.h>
 
 RcDriveriBus::RcDriveriBus() {
+    //TODO, preguntar si aixo del debug es bona idea
+    #ifdef DEBUG
+    Serial.println("Initializing RcDriveriBus...");
+    #endif
+
     // Initialize buffer and state
     bufferIndex = 0;
     currentState = WAITING_HEADER;
@@ -11,16 +16,16 @@ RcDriveriBus::RcDriveriBus() {
     lastTxTime = 0;
     
     // Initialize RcInfo structure
-    rcInfo.throttle = 0;
-    rcInfo.yaw = 0;
-    rcInfo.pitch = 0;
-    rcInfo.roll = 0;
+    rcInfo.throttle = IBUS_MIN_VALUE;  // Initialize to min value (1000)
+    rcInfo.yaw = IBUS_MIN_VALUE;
+    rcInfo.pitch = IBUS_MIN_VALUE;
+    rcInfo.roll = IBUS_MIN_VALUE;
     rcInfo.Naux = IBUS_MAX_CHANNELS - 4;  // 4 main channels, rest are aux
-    rcInfo.aux = new uint8_t[rcInfo.Naux];
+    rcInfo.aux = new uint16_t[rcInfo.Naux];  // Changed from uint8_t to uint16_t
     
     // Initialize aux channels
     for (int i = 0; i < rcInfo.Naux; i++) {
-        rcInfo.aux[i] = 0;
+        rcInfo.aux[i] = IBUS_MIN_VALUE;  // Initialize to min value
     }
     
     // Initialize telemetry data
@@ -31,6 +36,10 @@ RcDriveriBus::RcDriveriBus() {
     
     rcInfo.timestamp = 0;
     txBufferSize = 0;
+
+    #ifdef DEBUG
+    Serial.println("RcDriveriBus initialized.");
+    #endif
 }
 
 RcDriveriBus::~RcDriveriBus() {
@@ -41,6 +50,7 @@ RcDriveriBus::~RcDriveriBus() {
 }
 
 void RcDriveriBus::processByte(uint8_t byte) {
+
     switch (currentState) {
         case WAITING_HEADER:
             // Check for first header byte
@@ -92,6 +102,7 @@ void RcDriveriBus::processByte(uint8_t byte) {
             bufferIndex = 0;
             break;
     }
+    
 }
 
 bool RcDriveriBus::verifyChecksum() {
@@ -115,35 +126,33 @@ int RcDriveriBus::encode() {
     txBuffer[1] = IBUS_HEADER_BYTE2;
     
     // Channel data (16-bit values in little-endian format)
-    // Map 0-255 back to 1000-2000 range for RC servos
-    uint16_t throttle = map(rcInfo.throttle, 0, 255, 1000, 2000);
-    uint16_t yaw = map(rcInfo.yaw, 0, 255, 1000, 2000);
-    uint16_t pitch = map(rcInfo.pitch, 0, 255, 1000, 2000);
-    uint16_t roll = map(rcInfo.roll, 0, 255, 1000, 2000);
+    // Store as-is without mapping
     
+    // Transformacio a little endian
     // Store main channels
-    txBuffer[2] = throttle & 0xFF;
-    txBuffer[3] = (throttle >> 8) & 0xFF;
+    txBuffer[2] = rcInfo.throttle & 0xFF;
+    txBuffer[3] = (rcInfo.throttle >> 8) & 0xFF;
     
-    txBuffer[4] = yaw & 0xFF;
-    txBuffer[5] = (yaw >> 8) & 0xFF;
+    txBuffer[4] = rcInfo.yaw & 0xFF;
+    txBuffer[5] = (rcInfo.yaw >> 8) & 0xFF;
     
-    txBuffer[6] = pitch & 0xFF;
-    txBuffer[7] = (pitch >> 8) & 0xFF;
+    txBuffer[6] = rcInfo.pitch & 0xFF;
+    txBuffer[7] = (rcInfo.pitch >> 8) & 0xFF;
     
-    txBuffer[8] = roll & 0xFF;
-    txBuffer[9] = (roll >> 8) & 0xFF;
+    txBuffer[8] = rcInfo.roll & 0xFF;
+    txBuffer[9] = (rcInfo.roll >> 8) & 0xFF;
     
     // Store aux channels
     for (int i = 0; i < rcInfo.Naux && i < (IBUS_MAX_CHANNELS - 4); i++) {
-        uint16_t auxValue = map(rcInfo.aux[i], 0, 255, 1000, 2000);
         int bufferIndex = 10 + (i * 2);
         
-        txBuffer[bufferIndex] = auxValue & 0xFF;
-        txBuffer[bufferIndex + 1] = (auxValue >> 8) & 0xFF;
+        txBuffer[bufferIndex] = rcInfo.aux[i] & 0xFF;
+        txBuffer[bufferIndex + 1] = (rcInfo.aux[i] >> 8) & 0xFF;
     }
     
     // Calculate checksum
+    //TODO, preguntar si es millor fer el checksum al final, 
+    // o fer-ho a mida que es va enviant
     uint16_t checksum = 0xFFFF;
     for (int i = 0; i < IBUS_FRAME_LENGTH - 2; i++) {
         checksum -= txBuffer[i];
@@ -163,12 +172,12 @@ int RcDriveriBus::decode() {
     // Update timestamp
     rcInfo.timestamp = millis();
     
-    // Extract channel values from buffer
+    // Extract channel values from buffer directly without mapping
     // Channels in IBus are 16-bit values starting at buffer[2]
-    rcInfo.throttle = map((buffer[2] | (buffer[3] << 8)), 1000, 2000, 0, 255);
-    rcInfo.yaw = map((buffer[4] | (buffer[5] << 8)), 1000, 2000, 0, 255);
-    rcInfo.pitch = map((buffer[6] | (buffer[7] << 8)), 1000, 2000, 0, 255);
-    rcInfo.roll = map((buffer[8] | (buffer[9] << 8)), 1000, 2000, 0, 255);
+    rcInfo.throttle = buffer[2] | (buffer[3] << 8);
+    rcInfo.yaw = buffer[4] | (buffer[5] << 8);
+    rcInfo.pitch = buffer[6] | (buffer[7] << 8);
+    rcInfo.roll = buffer[8] | (buffer[9] << 8);
     
     // Fill auxiliary channels
     for (int i = 0; i < rcInfo.Naux; i++) {
@@ -176,8 +185,7 @@ int RcDriveriBus::decode() {
         
         // Ensure we don't read beyond buffer boundary
         if (bufferIndex < IBUS_FRAME_LENGTH - 2) {
-            uint16_t rawValue = buffer[bufferIndex] | (buffer[bufferIndex + 1] << 8);
-            rcInfo.aux[i] = map(rawValue, 1000, 2000, 0, 255);
+            rcInfo.aux[i] = buffer[bufferIndex] | (buffer[bufferIndex + 1] << 8);
         }
     }
     
@@ -195,10 +203,29 @@ int RcDriveriBus::decode() {
     return 0; // Success
 }
 
-RcInfo RcDriveriBus::getRcInfo() {
-    return rcInfo;
+//TODO, mirar si es millor fer un memcpy, o copiar un a un
+void RcDriveriBus::getRcInfo(RcInfo& info) {
+    // Copy the main channel data
+    info.throttle = rcInfo.throttle;
+    info.yaw = rcInfo.yaw;
+    info.pitch = rcInfo.pitch;
+    info.roll = rcInfo.roll;
+    info.Naux = rcInfo.Naux;
+    
+    // Copy aux channel data if a buffer has been provided
+    if (info.aux != nullptr && rcInfo.aux != nullptr && info.Naux > 0) {
+        for (int i = 0; i < info.Naux; i++) {
+            info.aux[i] = rcInfo.aux[i];
+        }
+    }
+    
+    // Copy telemetry and timestamp
+    info.telemetry = rcInfo.telemetry;
+    info.timestamp = rcInfo.timestamp;
 }
 
+//Data is copied one by one,so in a future version you could check for problems or errors
+//TODO, mirar si realment fa falta, o simplement es pot fer un memcpy
 void RcDriveriBus::setRcInfo(const RcInfo& info) {
     // Copy the data
     rcInfo.throttle = info.throttle;

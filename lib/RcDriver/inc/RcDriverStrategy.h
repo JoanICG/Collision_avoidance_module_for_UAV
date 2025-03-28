@@ -19,12 +19,13 @@ typedef struct TelemetryInfo{
 
 // RC Info structure
 typedef struct RcInfo{
-    uint8_t throttle;
-    uint8_t yaw;
-    uint8_t pitch;
-    uint8_t roll;
+    uint16_t throttle;
+    uint16_t yaw;
+    uint16_t pitch;
+    uint16_t roll;
     uint8_t Naux;
-    uint8_t* aux;
+    uint16_t* aux;      // The strategy will NOT allocate memory for this
+                        // RcDriver class is responsible for memory management
     TelemetryInfo telemetry;
     unsigned long timestamp;
 }RcInfo;
@@ -43,10 +44,12 @@ public:
     // Decode RC data - returns 0 if success, <0 if error
     virtual int decode() = 0;
     
-    // Get the decoded RC info
-    virtual RcInfo getRcInfo() = 0;
+    // Fill the provided RcInfo structure with current data
+    // IMPORTANT: The strategy must not allocate or deallocate memory for aux
+    virtual void getRcInfo(RcInfo& info) = 0;
     
-    // Set new RC data
+    // Update internal data from the provided RcInfo
+    // IMPORTANT: The strategy must not take ownership of the aux pointer
     virtual void setRcInfo(const RcInfo& info) = 0;
     
     // Get the encoded buffer for transmission

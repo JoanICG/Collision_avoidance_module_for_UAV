@@ -1,26 +1,35 @@
 #include <Arduino.h>
 #include "../lib/RcDriver/RcDriver.h"
+#include "../lib/RcDriver/inc/RcDriveriBus.h"
 
+// Create an instance of the iBus strategy
+RcDriveriBus ibusStrategy;
 RcDriver rcDriver;
+
 unsigned long lastDisplayTime = 0;
 const unsigned long DISPLAY_INTERVAL = 1000;  // Display data every second
 
-// Create a function to send RC data
+// Send modified RC data
 void sendModifiedRcData() {
-    // Get current RC data
-    RcInfo info = rcDriver.getRcInfo();
+    // Create a struct RcInfo local
+    RcInfo info;
     
-    // Modify the data (example: invert throttle)
-    info.throttle = 255 - info.throttle;
+    // Get the current RC data
+    rcDriver.getRcInfo(info);
+
+    // Modify the data if needed (example: invert throttle)
+    // info.throttle = 2000 - info.throttle;
+
+    // Send the modified data
+    int sent = rcDriver.sendRcInfo(info);
     
-    // Send modified data back out
-    bool sent = rcDriver.sendRcInfo(info);
-    
-    // Don't need to report failures due to timing restrictions
-    if (sent) {
+    // No need to report failures due to timing constraints
+    if (sent == 0) {
         // Uncomment for debugging
         // Serial.println("Sent modified RC data");
     }
+    
+    // DO NOT free memory here - RcDriver handles memory management
 }
 
 void setup() {
@@ -29,6 +38,7 @@ void setup() {
     Serial.println("RC Driver Test");
     Serial.println("Initializing RC Driver...");
     
+    rcDriver.setStrategy(&ibusStrategy);  // Set the strategy to iBus
     // Initialize RC Driver with default iBus strategy
     rcDriver.begin(115200);
 }
@@ -43,8 +53,11 @@ void loop() {
     // Display data periodically
     unsigned long currentTime = millis();
     if (currentTime - lastDisplayTime >= DISPLAY_INTERVAL) {
-        // Get the latest RC data
-        RcInfo info = rcDriver.getRcInfo();
+        // Create a struct RcInfo local
+        RcInfo info;
+        
+        // Get the current RC data
+        rcDriver.getRcInfo(info);
         
         // Calculate time since last frame
         unsigned long frameAge = currentTime - info.timestamp;
@@ -80,6 +93,8 @@ void loop() {
         Serial.println(" ms");
         
         Serial.println("----------------------------");
+        
+        // DO NOT free memory here - RcDriver handles memory management
         
         lastDisplayTime = currentTime;
     }

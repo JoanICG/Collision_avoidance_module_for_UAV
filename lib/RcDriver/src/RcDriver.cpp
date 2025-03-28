@@ -4,12 +4,21 @@
 RcDriver::RcDriver() {
     strategy = nullptr;
     lastPacketTime = 0;
+    
+    // Pre-allocate aux array with maximum possible size
+    auxBuffer = new uint16_t[IBUS_MAX_CHANNELS];
 }
 
 RcDriver::~RcDriver() {
     if (strategy != nullptr) {
         delete strategy;
         strategy = nullptr;
+    }
+    
+    // Free the pre-allocated aux buffer
+    if (auxBuffer != nullptr) {
+        delete[] auxBuffer;
+        auxBuffer = nullptr;
     }
 }
 
@@ -19,10 +28,11 @@ void RcDriver::begin(int baudRate) {
     
     // Set default strategy to IBus if none is set
     if (strategy == nullptr) {
+        Serial.println("No strategy set, using default iBus strategy.");
         strategy = new RcDriveriBus();
     }
     
-    Serial.println("RcDriver initialized with Serial2 on pins RX2(16)/TX2(17)");
+    Serial.println("RcDriver initialized with Serial2 on pins RX2(" + String(RX2_PIN) + ")/TX2(" + String(TX2_PIN) + ")");
 }
 
 void RcDriver::setStrategy(RcDriverStrategy* newStrategy) {
@@ -44,24 +54,34 @@ void RcDriver::update() {
     }
 }
 
-RcInfo RcDriver::getRcInfo() {
+void RcDriver::getRcInfo(RcInfo& info) {
     if (strategy != nullptr) {
-        return strategy->getRcInfo();
+        // Make sure info.aux points to our managed buffer before passing to strategy
+        info.aux = auxBuffer;
+        
+        // Let the strategy fill in the values
+        strategy->getRcInfo(info);
+    } else {
+        // Initialize with default values if no strategy is set
+        info.throttle = 0;
+        info.yaw = 0;
+        info.pitch = 0;
+        info.roll = 0;
+        info.Naux = 0;
+        info.aux = auxBuffer;  // Still provide the buffer, but indicate 0 channels
+        info.timestamp = 0;
+        info.telemetry = {0};
     }
-    
-    // Return empty RcInfo if no strategy is set
-    RcInfo emptyInfo = {};
-    return emptyInfo;
 }
 
-bool RcDriver::sendRcInfo(const RcInfo& info) {
+int RcDriver::sendRcInfo(const RcInfo& info) {
     if (strategy == nullptr) {
-        return false;
+        return -1; // No strategy set
     }
     
     // Check if we can transmit according to the protocol's timing requirements
     if (!strategy->canTransmitNow()) {
-        return false;
+        return -2; // Not ready to transmit yet
     }
     
     // Update strategy with new data
@@ -70,7 +90,7 @@ bool RcDriver::sendRcInfo(const RcInfo& info) {
     // Encode data
     int result = strategy->encode();
     if (result != 0) {
-        return false;
+        return -3; // Encoding failed
     }
     
     // Get the encoded buffer and send it
@@ -78,7 +98,7 @@ bool RcDriver::sendRcInfo(const RcInfo& info) {
     size_t bufferSize = strategy->getEncodedBufferSize();
     
     if (buffer == nullptr || bufferSize == 0) {
-        return false;
+        return -4; // Invalid buffer
     }
     
     // Send the data through Serial2
@@ -87,7 +107,7 @@ bool RcDriver::sendRcInfo(const RcInfo& info) {
     // Mark that transmission has occurred
     strategy->markTransmitted();
     
-    return true;
+    return 0;
 }
 
 unsigned long RcDriver::getTimeSinceLastRx() {
