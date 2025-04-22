@@ -3,6 +3,9 @@
 
 #include <Adafruit_VL53L0X.h>
 
+#define NSENSORS 5  // Número total de sensores VL53L0X
+#define DEFAULT_I2C_ADDRESS 0x29  // Dirección I2C por defecto para los sensores VL53L0X
+
 // Definir pines XSHUT para los 5 sensores
 #define XSHUT_1   15  // IO15
 #define XSHUT_2   4   // IO4
@@ -17,7 +20,7 @@
 #define GPIO_INTERRUPT_1 18  // Izquierda
 #define GPIO_INTERRUPT_2 2   // Frontal
 #define GPIO_INTERRUPT_3 5   // Derecha
-#define GPIO_INTERRUPT_4 19  // Trasero (mantenemos el actual)
+#define GPIO_INTERRUPT_4 19  // Trasero 
 #define GPIO_INTERRUPT_5 23  // Inferior
 
 // Modos de operación del sensor
@@ -32,17 +35,11 @@ typedef void (*VL53L0XCallbackFunction)();
 
 class VL53L0X_Manager {
 private:
-  Adafruit_VL53L0X sensor1;
-  Adafruit_VL53L0X sensor2;
-  Adafruit_VL53L0X sensor3; 
-  Adafruit_VL53L0X sensor4; 
-  Adafruit_VL53L0X sensor5;
+  Adafruit_VL53L0X sensor[NSENSORS];
 
-  bool sensor1Enabled;
-  bool sensor2Enabled;
-  bool sensor3Enabled;
-  bool sensor4Enabled;
-  bool sensor5Enabled;
+
+  bool sensorEnabled[NSENSORS]; 
+
   
   // Variables para la interrupción
   bool interruptEnabled;
@@ -50,18 +47,10 @@ private:
   VL53L0XCallbackFunction callbackFunction;
 
   // Estados de interrupción para cada sensor
-  bool interrupt1Enabled;
-  bool interrupt2Enabled;
-  bool interrupt3Enabled;
-  bool interrupt4Enabled;
-  bool interrupt5Enabled;
+  bool  interruptEnabled[NSENSORS];
   
   // Callbacks específicos para cada sensor
-  VL53L0XCallbackFunction callback1;
-  VL53L0XCallbackFunction callback2;
-  VL53L0XCallbackFunction callback3;
-  VL53L0XCallbackFunction callback4;
-  VL53L0XCallbackFunction callback5;
+  VL53L0XCallbackFunction callback[NSENSORS];
 
   // Puntero al sensor que maneja las interrupciones
   Adafruit_VL53L0X* sensorWithInterrupt;
@@ -76,7 +65,7 @@ private:
   void configureStandardMode(Adafruit_VL53L0X &sensor);
   void configureLongRangeMode(Adafruit_VL53L0X &sensor);
   void configurePrecisionMode(Adafruit_VL53L0X &sensor);
-
+ 
 public:
   VL53L0X_Manager();
   
@@ -89,11 +78,7 @@ public:
   void setAllSensorsMode(SensorMode mode);
   
   // Toma de medidas
-  bool getMeasurement(VL53L0X_RangingMeasurementData_t &measure1, 
-                      VL53L0X_RangingMeasurementData_t &measure2,
-                      VL53L0X_RangingMeasurementData_t &measure3,
-                      VL53L0X_RangingMeasurementData_t &measure4,
-                      VL53L0X_RangingMeasurementData_t &measure5);
+  bool getMeasurement(VL53L0X_RangingMeasurementData_t measurements[NSENSORS]);
   
   // Funciones para manejo de interrupciones (para el sensor trasero - sensor4)
   bool setupInterrupt(uint16_t thresholdDistance, VL53L0XCallbackFunction callback);
@@ -124,21 +109,15 @@ public:
   Adafruit_VL53L0X& getSensor4() { return sensor4; } 
   Adafruit_VL53L0X& getSensor5() { return sensor5; }
 
-  bool isSensor1Enabled() { return sensor1Enabled; }
-  bool isSensor2Enabled() { return sensor2Enabled; }
-  bool isSensor3Enabled() { return sensor3Enabled; }
-  bool isSensor4Enabled() { return sensor4Enabled; }
-  bool isSensor5Enabled() { return sensor5Enabled; }
-  
   bool isInterruptEnabled() { return interruptEnabled; }
   uint16_t getThresholdDistance() { return thresholdDistance; }
 
   // Getters para comprobar si los sensores están habilitados
-  bool isSensor1Enabled() const { return sensor1Enabled; }
-  bool isSensor2Enabled() const { return sensor2Enabled; }
-  bool isSensor3Enabled() const { return sensor3Enabled; }
-  bool isSensor4Enabled() const { return sensor4Enabled; }
-  bool isSensor5Enabled() const { return sensor5Enabled; }
+  bool isSensor1Enabled() const { return sensorEnabled[0]; }
+  bool isSensor2Enabled() const { return sensorEnabled[1]; }
+  bool isSensor3Enabled() const { return sensorEnabled[2]; }
+  bool isSensor4Enabled() const { return sensorEnabled[3]; }
+  bool isSensor5Enabled() const { return sensorEnabled[4]; }
   
   // Configurar interrupciones en todos los sensores habilitados
   bool setupAllInterrupts(uint16_t threshold1, uint16_t threshold2,
