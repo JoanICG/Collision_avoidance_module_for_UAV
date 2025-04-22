@@ -1,0 +1,120 @@
+#include <Wire.h>
+#include "vl53l0x_sensor.h"
+#include "mpu6050_sensor.h"
+
+// Variables para controlar la frecuencia de actualización
+unsigned long lastDistanceUpdate = 0;
+unsigned long lastMpuUpdate = 0;
+const unsigned long DISTANCE_UPDATE_INTERVAL = 200;  // 5Hz para distancia
+const unsigned long MPU_UPDATE_INTERVAL = 20;        // 50Hz para MPU
+
+void setup() {
+  Serial.begin(115200);
+  while (!Serial && millis() < 3000);
+  
+  Serial.println("\n\n=== Test de Sensores VL53L0X y MPU6050 ===");
+  Wire.begin();
+  Wire.setClock(100000);
+  
+  // Escanear bus I2C
+  vl53l0xSensors.scanI2C();
+  
+  // Inicializar MPU6050
+  if (!mpuSensor.begin()) {
+    delay(2000);
+  }
+  
+  // Inicializar sensores VL53L0X
+  if (!vl53l0xSensors.begin()) {
+    Serial.println("Error al iniciar sensores VL53L0X");
+    delay(2000);
+  }
+  
+  // Verificar dispositivos I2C nuevamente
+  vl53l0xSensors.scanI2C();
+  
+  Serial.println("Configuración completa, todos los sensores inicializados");
+  Serial.println("\nPresiona 1-3 para cambiar modos:");
+  Serial.println("1 - Modo Estándar");
+  Serial.println("2 - Modo Largo Alcance");
+  Serial.println("3 - Modo Alta Precisión");
+}
+
+void loop() {
+  // Cambiar el modo según entrada serial
+  if (Serial.available() > 0) {
+    char input = Serial.read();
+    
+    if (input == '1') {
+      vl53l0xSensors.setAllSensorsMode(MODE_STANDARD);
+    }
+    else if (input == '2') {
+      vl53l0xSensors.setAllSensorsMode(MODE_LONG_RANGE);
+    }
+    else if (input == '3') {
+      vl53l0xSensors.setAllSensorsMode(MODE_HIGH_PRECISION);
+    }
+  }
+  
+  unsigned long currentMillis = millis();
+  
+  // Actualizar MPU6050 a mayor frecuencia
+  if (currentMillis - lastMpuUpdate >= MPU_UPDATE_INTERVAL) {
+    lastMpuUpdate = currentMillis;
+    mpuSensor.update();
+  }
+  
+  // Actualizar sensores de distancia a menor frecuencia
+  if (currentMillis - lastDistanceUpdate >= DISTANCE_UPDATE_INTERVAL) {
+    lastDistanceUpdate = currentMillis;
+    
+    // Tomar medidas de distancia
+    VL53L0X_RangingMeasurementData_t measure1, measure2;
+    vl53l0xSensors.getMeasurement(measure1, measure2);
+    
+    // Mostrar resultados de todos los sensores
+    Serial.println("\n----- Lecturas de Sensores -----");
+    
+    // Distancia
+    Serial.print("Distancia 1: ");
+    if (vl53l0xSensors.isSensor1Enabled() && measure1.RangeStatus != 4) {
+      Serial.print(measure1.RangeMilliMeter);
+      Serial.println(" mm");
+    } else {
+      Serial.println("Fuera de rango");
+    }
+    
+    Serial.print("Distancia 2: ");
+    if (vl53l0xSensors.isSensor2Enabled() && measure2.RangeStatus != 4) {
+      Serial.print(measure2.RangeMilliMeter);
+      Serial.println(" mm");
+    } else {
+      Serial.println("Fuera de rango");
+    }
+    
+    // Aceleración
+    Serial.print("Aceleración: X=");
+    Serial.print(mpuSensor.getAccelX(), 1);
+    Serial.print(" Y=");
+    Serial.print(mpuSensor.getAccelY(), 1);
+    Serial.print(" Z=");
+    Serial.print(mpuSensor.getAccelZ(), 1);
+    Serial.println(" m/s²");
+    
+    // Giroscopio
+    Serial.print("Giroscopio: X=");
+    Serial.print(mpuSensor.getGyroX(), 1);
+    Serial.print(" Y=");
+    Serial.print(mpuSensor.getGyroY(), 1);
+    Serial.print(" Z=");
+    Serial.print(mpuSensor.getGyroZ(), 1);
+    Serial.println(" rad/s");
+    
+    // Ángulos
+    Serial.print("Ángulos: Pitch=");
+    Serial.print(mpuSensor.getPitch(), 1);
+    Serial.print("° Roll=");
+    Serial.print(mpuSensor.getRoll(), 1);
+    Serial.println("°");
+  }
+}

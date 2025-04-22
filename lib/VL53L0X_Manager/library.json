@@ -1,0 +1,19 @@
+{
+    "name": "VL53L0X_Manager",
+    "version": "1.0.0",
+    "description": "Gestor de sensores VL53L0X para sistema anticolisión",
+    "keywords": "sensor, distance, vl53l0x, avionics",
+    "authors": {
+        "name": "Joan Ignasi Cid Guardia",
+        "email": "joanignasi.cid@estudiants.urv.cat"
+    },
+    "export": {
+        "include": [
+            "src",
+            "VL53L0X_sensor.h"
+        ]
+    },
+    "dependencies": {
+        "adafruit/Adafruit_VL53L0X": "^1.2.4"
+    }
+}

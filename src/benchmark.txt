@@ -1,0 +1,397 @@
+#include <Wire.h>
+#include "vl53l0x_sensor.h"
+
+// Definir LED para depuración visual
+#define LED_BUILTIN 2  // LED integrado en ESP32
+#define TEST_SAMPLES 100  // Número de muestras para cada prueba
+
+// Tiempo de umbral para considerar que una detección es "rápida" (en microsegundos)
+#define FAST_THRESHOLD_US 5000
+
+// Constantes para la simulación
+#define SIMULACION_DELAY_MIN 100  // Tiempo mínimo entre simulaciones (ms)
+#define SIMULACION_DELAY_MAX 500  // Tiempo máximo entre simulaciones (ms)
+#define TEST_THRESHOLD 150        // Umbral de distancia para ambas pruebas (mm)
+
+// Variables para control de interrupción
+volatile bool obstaculoDetectado = false;
+volatile unsigned long tiempoInterrupcion = 0;
+
+// Variables para medición de tiempo
+unsigned long tiempoInicio = 0;
+unsigned long tiempoSimulacion = 0;
+unsigned long tiempoUltimaSimulacion = 0;
+
+// Arrays para guardar resultados de mediciones
+unsigned long tiemposPolling[TEST_SAMPLES];
+unsigned long tiemposInterrupt[TEST_SAMPLES];
+int muestraActual = 0;
+bool pruebaInterruptCompletada = false;
+bool pruebaPollingCompletada = false;
+
+// Estado de la prueba
+enum EstadoPrueba {
+  ESPERANDO_INICIO,
+  PRUEBA_INTERRUPT,
+  PRUEBA_POLLING,
+  MOSTRAR_RESULTADOS
+};
+
+EstadoPrueba estadoActual = ESPERANDO_INICIO;
+
+// Variables para simulación
+unsigned long tiempoProximaSimulacion = 0;
+bool simulacionActiva = false;
+int contadorSimulaciones = 0;
+hw_timer_t *simuladorTimer = NULL;
+volatile bool simularInterrupcion = false;
+
+// Función para simular interrupciones mediante timer
+void IRAM_ATTR onSimuladorTimer() {
+  simularInterrupcion = true;
+  tiempoInterrupcion = micros();
+}
+
+// Función de callback para la interrupción
+void IRAM_ATTR obstaculoProximo() {
+  tiempoInterrupcion = micros();  // Timestamp preciso cuando ocurre la interrupción
+  obstaculoDetectado = true;
+}
+
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+  
+  // Configurar LED
+  pinMode(LED_BUILTIN, OUTPUT);
+  
+  // Parpadeo inicial
+  for (int i = 0; i < 3; i++) {
+    digitalWrite(LED_BUILTIN, HIGH);
+    delay(100);
+    digitalWrite(LED_BUILTIN, LOW);
+    delay(100);
+  }
+  
+  Serial.println("\n\n=== BENCHMARK AUTOMATIZADO: INTERRUPCIÓN vs POLLING VL53L0X ===");
+  Wire.begin();
+  Wire.setClock(400000);
+  
+  Serial.println("Inicializando sensores VL53L0X...");
+  if (!vl53l0xSensors.begin()) {
+    Serial.println("Error al iniciar sensores VL53L0X");
+    while(1) {
+      digitalWrite(LED_BUILTIN, HIGH);
+      delay(50);
+      digitalWrite(LED_BUILTIN, LOW);
+      delay(50);
+    }
+  }
+
+  // Configurar timer para simulación (80MHz / 80 = 1MHz -> microsegundos)
+  simuladorTimer = timerBegin(0, 80, true);
+  timerAttachInterrupt(simuladorTimer, &onSimuladorTimer, true);
+
+  // Mostrar menú de opciones
+  Serial.println("\n===== MENÚ DE PRUEBAS AUTOMÁTICAS =====");
+  Serial.println("1. Iniciar prueba automática de interrupciones");
+  Serial.println("2. Iniciar prueba automática de polling");
+  Serial.println("3. Ejecutar prueba completa automática (ambas secuencialmente)");
+  Serial.println("Envía el número de tu elección...");
+}
+
+// Inicia una simulación de interrupción después de un tiempo aleatorio
+void programarSimulacion() {
+  unsigned long tiempoEspera = random(SIMULACION_DELAY_MIN, SIMULACION_DELAY_MAX);
+  tiempoProximaSimulacion = millis() + tiempoEspera;
+  simulacionActiva = true;
+  Serial.print("Próxima simulación en ");
+  Serial.print(tiempoEspera);
+  Serial.println(" ms");
+}
+
+void iniciarPruebaInterrupt() {
+  Serial.println("\n\n=== INICIANDO PRUEBA AUTOMÁTICA DE INTERRUPCIONES ===");
+  
+  muestraActual = 0;
+  pruebaInterruptCompletada = false;
+  
+  // Configurar simulador de interrupciones con timer
+  // Usamos un timer que disparará cada cierto tiempo (entre 100-500ms)
+  timerStop(simuladorTimer);
+  timerRestart(simuladorTimer);
+  timerWrite(simuladorTimer, 0);
+  
+  Serial.println("Configurando prueba automática de interrupciones...");
+  Serial.println("Se tomarán " + String(TEST_SAMPLES) + " muestras.");
+  Serial.println("Progreso: 0%");
+  
+  // Iniciar la primera simulación
+  programarSimulacion();
+  tiempoInicio = micros();
+  
+  estadoActual = PRUEBA_INTERRUPT;
+}
+
+void iniciarPruebaPolling() {
+  Serial.println("\n\n=== INICIANDO PRUEBA AUTOMÁTICA DE POLLING ===");
+  
+  muestraActual = 0;
+  pruebaPollingCompletada = false;
+  
+  Serial.println("Configurando prueba automática de polling...");
+  Serial.println("Se tomarán " + String(TEST_SAMPLES) + " muestras.");
+  Serial.println("Progreso: 0%");
+  
+  // Iniciar la primera simulación para polling
+  programarSimulacion();
+  
+  estadoActual = PRUEBA_POLLING;
+}
+
+void mostrarEstadisticas(unsigned long* tiempos, int numMuestras, const char* titulo) {
+  unsigned long tiempoMinimo = ULONG_MAX;
+  unsigned long tiempoMaximo = 0;
+  unsigned long tiempoTotal = 0;
+  
+  for (int i = 0; i < numMuestras; i++) {
+    tiempoTotal += tiempos[i];
+    if (tiempos[i] < tiempoMinimo) tiempoMinimo = tiempos[i];
+    if (tiempos[i] > tiempoMaximo) tiempoMaximo = tiempos[i];
+  }
+  
+  float tiempoPromedio = (float)tiempoTotal / numMuestras;
+  
+  // Calcular desviación estándar
+  float sumaCuadrados = 0;
+  for (int i = 0; i < numMuestras; i++) {
+    float diff = tiempos[i] - tiempoPromedio;
+    sumaCuadrados += diff * diff;
+  }
+  float desviacionEstandar = sqrt(sumaCuadrados / numMuestras);
+  
+  // Contar cuántas muestras son "rápidas"
+  int muestrasRapidas = 0;
+  for (int i = 0; i < numMuestras; i++) {
+    if (tiempos[i] < FAST_THRESHOLD_US) {
+      muestrasRapidas++;
+    }
+  }
+  float porcentajeRapidas = (float)muestrasRapidas * 100 / numMuestras;
+  
+  Serial.println("\n=== " + String(titulo) + " ===");
+  Serial.println("Tiempo mínimo: " + String(tiempoMinimo) + " µs (" + String((float)tiempoMinimo/1000) + " ms)");
+  Serial.println("Tiempo máximo: " + String(tiempoMaximo) + " µs (" + String((float)tiempoMaximo/1000) + " ms)");
+  Serial.println("Tiempo promedio: " + String(tiempoPromedio) + " µs (" + String(tiempoPromedio/1000) + " ms)");
+  Serial.println("Desviación estándar: " + String(desviacionEstandar) + " µs");
+  Serial.println("Muestras por debajo de " + String(FAST_THRESHOLD_US) + "µs: " + 
+                String(muestrasRapidas) + " (" + String(porcentajeRapidas) + "%)");
+}
+
+void mostrarResultados() {
+  Serial.println("\n\n=========== RESULTADOS DEL BENCHMARK AUTOMÁTICO ===========");
+  
+  if (pruebaInterruptCompletada) {
+    mostrarEstadisticas(tiemposInterrupt, TEST_SAMPLES, "MEDICIÓN CON INTERRUPCIONES");
+  }
+  
+  if (pruebaPollingCompletada) {
+    mostrarEstadisticas(tiemposPolling, TEST_SAMPLES, "MEDICIÓN CON POLLING");
+  }
+  
+  if (pruebaInterruptCompletada && pruebaPollingCompletada) {
+    // Calcular mejora relativa
+    unsigned long totalInterrupt = 0;
+    unsigned long totalPolling = 0;
+    
+    for (int i = 0; i < TEST_SAMPLES; i++) {
+      totalInterrupt += tiemposInterrupt[i];
+      totalPolling += tiemposPolling[i];
+    }
+    
+    float promedioInterrupt = (float)totalInterrupt / TEST_SAMPLES;
+    float promedioPolling = (float)totalPolling / TEST_SAMPLES;
+    float mejoraPorcentaje = 100 * (promedioPolling - promedioInterrupt) / promedioPolling;
+    
+    Serial.println("\n=== COMPARACIÓN AUTOMÁTICA ===");
+    if (mejoraPorcentaje > 0) {
+      Serial.println("¡Las interrupciones son un " + String(mejoraPorcentaje) + "% más rápidas que el polling!");
+    } else {
+      Serial.println("El polling es un " + String(-mejoraPorcentaje) + "% más rápido que las interrupciones.");
+    }
+  }
+  
+  Serial.println("\n=== PRUEBA AUTOMÁTICA COMPLETADA ===");
+  Serial.println("\nPresiona cualquier tecla para volver al menú principal...");
+  estadoActual = ESPERANDO_INICIO;
+}
+
+// Simula un rango de medición como si el sensor lo detectara
+void simularMedicionRango(VL53L0X_RangingMeasurementData_t &measure, uint16_t distancia, bool valida) {
+  measure.RangeMilliMeter = distancia; 
+  measure.RangeStatus = valida ? 0 : 4;  // 0 = medición válida, 4 = fuera de rango/inválida
+}
+
+void loop() {
+  // Manejar entrada del usuario
+  if (Serial.available()) {
+    char opcion = Serial.read();
+    
+    if (estadoActual == ESPERANDO_INICIO) {
+      if (opcion == '1') {
+        iniciarPruebaInterrupt();
+      } else if (opcion == '2') {
+        iniciarPruebaPolling();
+      } else if (opcion == '3') {
+        // Iniciar prueba completa secuencial
+        iniciarPruebaInterrupt();
+      }
+    } else if (estadoActual == MOSTRAR_RESULTADOS) {
+      // Cualquier tecla para volver al menú
+      setup();
+    }
+  }
+  
+  // Prueba automática de interrupciones
+  if (estadoActual == PRUEBA_INTERRUPT) {
+    // Actualizar constantemente tiempoInicio
+    tiempoInicio = micros();
+    
+    // Comprobar si es hora de simular una interrupción
+    unsigned long currentMillis = millis();
+    if (simulacionActiva && currentMillis >= tiempoProximaSimulacion) {
+      // Simular la interrupción
+      simulacionActiva = false;
+      
+      // AÑADIR: Simular tiempo interno de procesamiento del sensor
+      // antes de generar la interrupción (normalmente ~500µs)
+      delayMicroseconds(500);
+      
+      simularInterrupcion = true;
+      tiempoInterrupcion = micros();
+    }
+    
+    if (simularInterrupcion) {
+      simularInterrupcion = false;
+      
+      // Calcular tiempo de respuesta
+      unsigned long tiempoRespuesta = tiempoInterrupcion - tiempoInicio;
+      tiemposInterrupt[muestraActual] = tiempoRespuesta;
+      
+      // Depuración
+      Serial.print("Interrupción #");
+      Serial.print(muestraActual + 1);
+      Serial.print(": ");
+      Serial.print(tiempoRespuesta);
+      Serial.println(" µs");
+      
+      // LED para visualización
+      digitalWrite(LED_BUILTIN, HIGH);
+      delay(50);
+      digitalWrite(LED_BUILTIN, LOW);
+      
+      // Incrementar contador
+      muestraActual++;
+      
+      // Mostrar progreso
+      if (muestraActual % 10 == 0) {
+        float progreso = 100.0 * muestraActual / TEST_SAMPLES;
+        Serial.print("Progreso: ");
+        Serial.print(progreso);
+        Serial.println("%");
+      }
+      
+      // Programar la siguiente simulación
+      programarSimulacion();
+      
+      // Si completamos todas las muestras
+      if (muestraActual >= TEST_SAMPLES) {
+        pruebaInterruptCompletada = true;
+        
+        // Si estamos en prueba completa, pasar a polling
+        if (pruebaPollingCompletada) {
+          estadoActual = MOSTRAR_RESULTADOS;
+          mostrarResultados();
+        } else {
+          iniciarPruebaPolling();
+        }
+      }
+    }
+  }
+  // Prueba automática de polling
+  else if (estadoActual == PRUEBA_POLLING) {
+    // Comprobar si es hora de simular una detección por polling
+    unsigned long currentMillis = millis();
+    if (simulacionActiva && currentMillis >= tiempoProximaSimulacion) {
+      // Desactivar la simulación actual
+      simulacionActiva = false;
+      
+      // Crear variables para almacenar medidas
+      VL53L0X_RangingMeasurementData_t measure1, measure2, measure3, measure4, measure5;
+      
+      // Simular una medición válida para sensor4 (por debajo del umbral)
+      simularMedicionRango(measure1, 200, true);  // Otros sensores con distancias normales
+      simularMedicionRango(measure2, 300, true);
+      simularMedicionRango(measure3, 250, true);
+      simularMedicionRango(measure4, 100, true);  // Sensor4 con objeto cercano (menor que umbral)
+      simularMedicionRango(measure5, 400, true);
+      
+      // Tomar tiempo antes de procesar la medida
+      unsigned long tiempoAntes = micros();
+      
+      // AÑADIR: Simular tiempo de comunicación I2C + procesamiento
+      // Típicamente 1-2ms para leer VL53L0X por I2C
+      delayMicroseconds(1500);  // 1.5ms de comunicación I2C simulada
+      
+      // Procesar la medida (similar al polling real)
+      bool detectado = false;
+      
+      if (measure4.RangeStatus != 4 && measure4.RangeMilliMeter < TEST_THRESHOLD) {
+        detectado = true;
+      }
+      
+      // Calcular tiempo de respuesta
+      unsigned long tiempoRespuesta = micros() - tiempoAntes;
+      tiemposPolling[muestraActual] = tiempoRespuesta;
+      
+      // Depuración
+      Serial.print("Polling #");
+      Serial.print(muestraActual + 1);
+      Serial.print(": ");
+      Serial.print(tiempoRespuesta);
+      Serial.println(" µs");
+      
+      // LED para visualización
+      digitalWrite(LED_BUILTIN, HIGH);
+      delay(50);
+      digitalWrite(LED_BUILTIN, LOW);
+      
+      // Incrementar contador
+      muestraActual++;
+      
+      // Mostrar progreso
+      if (muestraActual % 10 == 0) {
+        float progreso = 100.0 * muestraActual / TEST_SAMPLES;
+        Serial.print("Progreso: ");
+        Serial.print(progreso);
+        Serial.println("%");
+      }
+      
+      // Programar la siguiente simulación
+      programarSimulacion();
+      
+      // Si completamos todas las muestras
+      if (muestraActual >= TEST_SAMPLES) {
+        pruebaPollingCompletada = true;
+        
+        // Si ya completamos también la prueba de interrupciones, mostrar resultados
+        if (pruebaInterruptCompletada) {
+          estadoActual = MOSTRAR_RESULTADOS;
+          mostrarResultados();
+        } else {
+          iniciarPruebaInterrupt();
+        }
+      }
+    }
+  }
+}

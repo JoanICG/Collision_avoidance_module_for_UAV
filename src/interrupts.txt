@@ -1,5 +1,5 @@
 #include <Wire.h>
-#include "../lib/VL53L0X_Manager/vl53l0x_sensor.h"
+#include "vl53l0x_sensor.h"
 
 // Definir LED para depuración visual
 #define LED_BUILTIN 2  // LED integrado en ESP32
