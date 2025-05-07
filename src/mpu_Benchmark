@@ -1,0 +1,121 @@
+#include <Arduino.h>
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+#include <Wire.h>
+
+Adafruit_MPU6050 mpu;
+
+// Test configuration
+const int NUM_SAMPLES = 100;    // Number of measurements to average
+const int WARMUP_SAMPLES = 10;  // Number of measurements to discard for warmup
+
+void setup() {
+  Serial.begin(115200);
+  while (!Serial) delay(10);  // Wait for serial console (not needed for ESP32 if not connected to USB)
+  
+  Serial.println("MPU6050 Measurement Timing Benchmark");
+
+  // Initialize I2C
+  Wire.begin();
+  // For ESP32, you can optionally change I2C speed:
+  // Wire.setClock(400000); // 400 kHz for faster measurements
+
+  // Try to initialize the sensor
+  if (!mpu.begin()) {
+    Serial.println("Failed to find MPU6050 chip");
+    while (1) {
+      delay(10);
+    }
+  }
+  Serial.println("MPU6050 Found!");
+
+  // Setup sensor parameters
+  mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+  mpu.setGyroRange(MPU6050_RANGE_500_DEG);
+  mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+
+  Serial.println("Sensor configured! Starting benchmark...");
+  delay(100);
+}
+
+void loop() {
+  unsigned long totalTime = 0;
+  unsigned long minTime = ULONG_MAX;
+  unsigned long maxTime = 0;
+  
+  // Discard initial readings (warmup)
+  for (int i = 0; i < WARMUP_SAMPLES; i++) {
+    sensors_event_t a, g, temp;
+    mpu.getEvent(&a, &g, &temp);
+    delay(5);
+  }
+  
+  // Perform benchmark
+  Serial.println("\n--- Starting Benchmark ---");
+  for (int i = 0; i < NUM_SAMPLES; i++) {
+    // Variables to hold sensor data
+    sensors_event_t accel, gyro, temp;
+    
+    // Start timing
+    unsigned long startMicros = micros();
+    
+    // Request data from sensor
+    bool success = mpu.getEvent(&accel, &gyro, &temp);
+    
+    // End timing
+    unsigned long endMicros = micros();
+    
+    // Calculate time taken
+    unsigned long duration = endMicros - startMicros;
+    
+    if (success) {
+      totalTime += duration;
+      minTime = min(minTime, duration);
+      maxTime = max(maxTime, duration);
+      
+      // Print individual measurement time and values (every 10 samples)
+      if (i % 10 == 0) {
+        Serial.print("Sample #");
+        Serial.print(i);
+        Serial.print(" - Time: ");
+        Serial.print(duration);
+        Serial.print(" µs, Accel X: ");
+        Serial.print(accel.acceleration.x);
+        Serial.print(" m/s², Gyro X: ");
+        Serial.print(gyro.gyro.x);
+        Serial.println(" rad/s");
+      }
+      
+      delay(5); // Small delay between measurements
+    } else {
+      Serial.println("Error reading sensor data!");
+      i--; // Retry
+    }
+  }
+  
+  // Print statistics
+  float avgTime = (float)totalTime / NUM_SAMPLES;
+  float frequency = 1000000.0 / avgTime;
+  
+  Serial.println("\n--- Benchmark Results ---");
+  Serial.print("Samples: ");
+  Serial.println(NUM_SAMPLES);
+  Serial.print("Average time per read: ");
+  Serial.print(avgTime, 2);
+  Serial.println(" µs");
+  Serial.print("Min time: ");
+  Serial.print(minTime);
+  Serial.println(" µs");
+  Serial.print("Max time: ");
+  Serial.print(maxTime);
+  Serial.println(" µs");
+  Serial.print("Jitter (max-min): ");
+  Serial.print(maxTime - minTime);
+  Serial.println(" µs");
+  Serial.print("Maximum possible frequency: ");
+  Serial.print(frequency, 2);
+  Serial.println(" Hz");
+  
+  Serial.println("\nTest complete. Waiting 5 seconds before next benchmark...");
+  delay(5000);
+}

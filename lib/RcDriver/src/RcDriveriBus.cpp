@@ -42,6 +42,7 @@ RcDriveriBus::RcDriveriBus() {
     #endif
 }
 
+//TODO, check if i need to do somethign more on the destructor
 RcDriveriBus::~RcDriveriBus() {
     if (rcInfo.aux != nullptr) {
         delete[] rcInfo.aux;

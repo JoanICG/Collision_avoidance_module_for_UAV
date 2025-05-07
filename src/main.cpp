@@ -1,100 +1,120 @@
-#include <Wire.h>
-#include "../lib/VL53L0X_Manager/vl53l0x_sensor.h"
+#include <Arduino.h>
+#include "mpu6050_sensor.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/semphr.h"
 
-// Definir LED para depuración visual
-#define LED_BUILTIN 2  // LED integrado en ESP32
+// Variables globales
+const int PRINT_INTERVAL = 50;  // Intervalo de impresión en ms
+static const char* TAG = "MPU6050_APP";
 
-// Solo definimos umbral para el sensor inferior
-#define THRESHOLD_SENSOR5 150
+// Handles para FreeRTOS
+TaskHandle_t sensorTaskHandle = NULL;
+TaskHandle_t displayTaskHandle = NULL;
+SemaphoreHandle_t sensorDataSemaphore = NULL;
 
-// Solo necesitamos esta variable para el sensor inferior
-volatile bool sensor5Detected = false;
+// Función de manejo de interrupción definida en el main
+void IRAM_ATTR mpuInterruptHandler() {
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    
+    // Notificar a la tarea del sensor que hay nuevos datos disponibles
+    if (sensorTaskHandle != NULL) {
+        vTaskNotifyGiveFromISR(sensorTaskHandle, &xHigherPriorityTaskWoken);
+        portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+    }
+}
 
-// Callback específico para el sensor inferior
-void IRAM_ATTR sensor5Callback() { 
-  sensor5Detected = true;
-  Serial.println("¡DETECCIÓN INFERIOR!");
+// Tarea para procesar datos del sensor
+void sensorTask(void *parameter) {
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    
+    // El bucle principal de la tarea
+    for (;;) {
+        // Esperar por notificación desde la ISR (o timeout para modo polling)
+        uint32_t ulNotifiedValue = ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(20));
+        
+        // Verificar si hay nuevos datos (por interrupción o polling)
+        if (mpuSensor.hasNewData() || ulNotifiedValue > 0) {
+            // Procesar datos del sensor
+            float pitch = mpuSensor.getPitch();
+            float roll = mpuSensor.getRoll();
+            float yaw = mpuSensor.getYaw();
+            
+            // Opcional: si necesitas hacer cálculos adicionales con los valores, hazlos aquí
+            
+            // Indicar que hay nuevos datos disponibles para mostrar
+            xSemaphoreGive(sensorDataSemaphore);
+        }
+    }
+}
+
+// Tarea para mostrar/comunicar datos
+void displayTask(void *parameter) {
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    
+    for (;;) {
+        // Esperar a que haya nuevos datos disponibles (o timeout)
+        if (xSemaphoreTake(sensorDataSemaphore, pdMS_TO_TICKS(100)) == pdTRUE) {
+            // Obtener datos actuales
+            float pitch = mpuSensor.getPitch();
+            float roll = mpuSensor.getRoll();
+            float yaw = mpuSensor.getYaw();
+            
+            // Mostrar resultados
+            Serial.printf("Orientación - Pitch: %5.2f°, Roll: %5.2f°, Yaw: %5.2f°\n", 
+                         pitch, roll, yaw);
+        }
+        
+        // Dar tiempo a otras tareas
+        vTaskDelay(pdMS_TO_TICKS(PRINT_INTERVAL));
+    }
 }
 
 void setup() {
-  Serial.begin(115200);
-  delay(1000);
-  
-  // Configurar LED
-  pinMode(LED_BUILTIN, OUTPUT);
-  
-  // Parpadeo inicial para indicar inicio
-  for (int i = 0; i < 3; i++) {
-    digitalWrite(LED_BUILTIN, HIGH);
-    delay(100);
-    digitalWrite(LED_BUILTIN, LOW);
-    delay(100);
-  }
-  
-  Serial.println("\n\n=== TEST DE INTERRUPCIONES - SOLO SENSOR INFERIOR ===");
-  
-  // Inicializar I2C
-  Wire.begin();
-  Wire.setClock(400000); // 400kHz para mejor rendimiento
-  
-  // Escanear bus I2C para ver qué dispositivos están presentes
-  Serial.println("\nEscaneando bus I2C...");
-  vl53l0xSensors.scanI2C();
-  
-  // Inicializar sensores VL53L0X - solo activaremos el sensor 5
-  Serial.println("\nInicializando sensores VL53L0X...");
-  if (!vl53l0xSensors.begin()) {
-    Serial.println("Error al iniciar sensores VL53L0X");
-    while(1) {
-      digitalWrite(LED_BUILTIN, HIGH);
-      delay(50);
-      digitalWrite(LED_BUILTIN, LOW);
-      delay(50);
+    Serial.begin(115200);
+    delay(1000);
+    
+    Serial.println("Iniciando sistema de orientación con MPU6050 (FreeRTOS)...");
+    
+    // Crear semáforo para sincronización de datos
+    sensorDataSemaphore = xSemaphoreCreateBinary();
+    if (sensorDataSemaphore == NULL) {
+        Serial.println("ERROR: No se pudo crear el semáforo!");
+        while (1) { delay(100); }
     }
-  }
-  
-  // Configurar interrupción solo para el sensor inferior
-  Serial.println("\nConfigurando interrupción para sensor inferior...");
-  // Debe ser exactamente así
-  if (vl53l0xSensors.setupInterrupt5(THRESHOLD_SENSOR5, sensor5Callback)) {
-    Serial.println("Interrupción configurada correctamente para sensor inferior");
-  } else {
-    Serial.println("ERROR: No se pudo configurar interrupción para sensor 5");
-  }
-  
-  Serial.println("\nSistema listo. Esperando detecciones de objetos debajo...");
-  Serial.println("Acerque objetos por debajo del sensor para probar...\n");
+    
+    // Inicializar el sensor MPU6050 con nuestra función de interrupción
+    if (!mpuSensor.begin(true, true, mpuInterruptHandler)) {
+        Serial.println("ERROR: No se pudo inicializar el MPU6050!");
+        while (1) { delay(100); }
+    }
+    
+    // Crear tareas
+    xTaskCreatePinnedToCore(
+        sensorTask,        // Función de tarea
+        "SensorTask",      // Nombre
+        4096,              // Stack size (bytes)
+        NULL,              // Parámetros
+        3,                 // Prioridad (mayor número = mayor prioridad)
+        &sensorTaskHandle, // Handle
+        0                  // Core (0 o 1)
+    );
+    
+    xTaskCreatePinnedToCore(
+        displayTask,
+        "DisplayTask",
+        4096,
+        NULL,
+        1,                 // Menor prioridad que la tarea del sensor
+        &displayTaskHandle,
+        1                  // Core diferente para mejor rendimiento
+    );
+    
+    Serial.println("Sistema FreeRTOS iniciado!");
 }
 
 void loop() {
-  // Verificar interrupción del sensor inferior
-  if (sensor5Detected) {
-    digitalWrite(LED_BUILTIN, HIGH);
-    Serial.println("Sensor inferior detectó un objeto");
-    
-    // Tomar medida
-    VL53L0X_RangingMeasurementData_t measure1, measure2, measure3, measure4, measure5;
-    vl53l0xSensors.getMeasurement(measure1, measure2, measure3, measure4, measure5);
-    
-    // Mostrar distancia
-    if (measure5.RangeStatus != 4) {
-      Serial.print("Distancia: ");
-      Serial.print(measure5.RangeMilliMeter);
-      Serial.println(" mm");
-    } else {
-      Serial.println("Medición inválida");
-    }
-    
-    // Limpiar flag y reiniciar medición
-    sensor5Detected = false;
-    vl53l0xSensors.clearSensorInterrupt(5);
-    
-    // Apagar LED después de procesar
-    delay(200);
-    digitalWrite(LED_BUILTIN, LOW);
-    Serial.println("----------------------------------");
-  }
-  
-  // Pequeña pausa para estabilidad
-  delay(10);
+    // En sistemas FreeRTOS, el loop() puede quedar vacío
+    // o usarse para tareas no críticas de baja prioridad
+    delay(1000);
 }
