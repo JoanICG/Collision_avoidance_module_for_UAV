@@ -1,120 +1,101 @@
 #include <Arduino.h>
-#include "mpu6050_sensor.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/semphr.h"
+#include "../lib/RcDriver/RcDriver.h"
+#include "../lib/RcDriver/inc/RcDriveriBus.h"
 
-// Variables globales
-const int PRINT_INTERVAL = 50;  // Intervalo de impresión en ms
-static const char* TAG = "MPU6050_APP";
+// Create an instance of the iBus strategy
+RcDriveriBus ibusStrategy;
+RcDriver rcDriver;
 
-// Handles para FreeRTOS
-TaskHandle_t sensorTaskHandle = NULL;
-TaskHandle_t displayTaskHandle = NULL;
-SemaphoreHandle_t sensorDataSemaphore = NULL;
+unsigned long lastDisplayTime = 0;
+const unsigned long DISPLAY_INTERVAL = 1000;  // Display data every second
 
-// Función de manejo de interrupción definida en el main
-void IRAM_ATTR mpuInterruptHandler() {
-    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+// Send modified RC data
+void sendModifiedRcData() {
+    // Create a struct RcInfo local
+    RcInfo info;
     
-    // Notificar a la tarea del sensor que hay nuevos datos disponibles
-    if (sensorTaskHandle != NULL) {
-        vTaskNotifyGiveFromISR(sensorTaskHandle, &xHigherPriorityTaskWoken);
-        portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
-    }
-}
+    // Get the current RC data
+    rcDriver.getRcInfo(info);
 
-// Tarea para procesar datos del sensor
-void sensorTask(void *parameter) {
-    TickType_t xLastWakeTime = xTaskGetTickCount();
-    
-    // El bucle principal de la tarea
-    for (;;) {
-        // Esperar por notificación desde la ISR (o timeout para modo polling)
-        uint32_t ulNotifiedValue = ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(20));
-        
-        // Verificar si hay nuevos datos (por interrupción o polling)
-        if (mpuSensor.hasNewData() || ulNotifiedValue > 0) {
-            // Procesar datos del sensor
-            float pitch = mpuSensor.getPitch();
-            float roll = mpuSensor.getRoll();
-            float yaw = mpuSensor.getYaw();
-            
-            // Opcional: si necesitas hacer cálculos adicionales con los valores, hazlos aquí
-            
-            // Indicar que hay nuevos datos disponibles para mostrar
-            xSemaphoreGive(sensorDataSemaphore);
-        }
-    }
-}
+    // Modify the data if needed (example: invert throttle)
+    // info.throttle = 2000 - info.throttle;
 
-// Tarea para mostrar/comunicar datos
-void displayTask(void *parameter) {
-    TickType_t xLastWakeTime = xTaskGetTickCount();
+    // Send the modified data
+    int sent = rcDriver.sendRcInfo(info);
     
-    for (;;) {
-        // Esperar a que haya nuevos datos disponibles (o timeout)
-        if (xSemaphoreTake(sensorDataSemaphore, pdMS_TO_TICKS(100)) == pdTRUE) {
-            // Obtener datos actuales
-            float pitch = mpuSensor.getPitch();
-            float roll = mpuSensor.getRoll();
-            float yaw = mpuSensor.getYaw();
-            
-            // Mostrar resultados
-            Serial.printf("Orientación - Pitch: %5.2f°, Roll: %5.2f°, Yaw: %5.2f°\n", 
-                         pitch, roll, yaw);
-        }
-        
-        // Dar tiempo a otras tareas
-        vTaskDelay(pdMS_TO_TICKS(PRINT_INTERVAL));
+    // No need to report failures due to timing constraints
+    if (sent == 0) {
+        // Uncomment for debugging
+        // Serial.println("Sent modified RC data");
     }
+    
+    // DO NOT free memory here - RcDriver handles memory management
 }
 
 void setup() {
-    Serial.begin(115200);
-    delay(1000);
+    Serial.begin(115200);  // Initialize primary serial for debug output
     
-    Serial.println("Iniciando sistema de orientación con MPU6050 (FreeRTOS)...");
+    Serial.println("RC Driver Test");
+    Serial.println("Initializing RC Driver...");
     
-    // Crear semáforo para sincronización de datos
-    sensorDataSemaphore = xSemaphoreCreateBinary();
-    if (sensorDataSemaphore == NULL) {
-        Serial.println("ERROR: No se pudo crear el semáforo!");
-        while (1) { delay(100); }
-    }
-    
-    // Inicializar el sensor MPU6050 con nuestra función de interrupción
-    if (!mpuSensor.begin(true, true, mpuInterruptHandler)) {
-        Serial.println("ERROR: No se pudo inicializar el MPU6050!");
-        while (1) { delay(100); }
-    }
-    
-    // Crear tareas
-    xTaskCreatePinnedToCore(
-        sensorTask,        // Función de tarea
-        "SensorTask",      // Nombre
-        4096,              // Stack size (bytes)
-        NULL,              // Parámetros
-        3,                 // Prioridad (mayor número = mayor prioridad)
-        &sensorTaskHandle, // Handle
-        0                  // Core (0 o 1)
-    );
-    
-    xTaskCreatePinnedToCore(
-        displayTask,
-        "DisplayTask",
-        4096,
-        NULL,
-        1,                 // Menor prioridad que la tarea del sensor
-        &displayTaskHandle,
-        1                  // Core diferente para mejor rendimiento
-    );
-    
-    Serial.println("Sistema FreeRTOS iniciado!");
+    rcDriver.setStrategy(&ibusStrategy);  // Set the strategy to iBus
+    // Initialize RC Driver with default iBus strategy
+    rcDriver.begin(115200);
 }
 
 void loop() {
-    // En sistemas FreeRTOS, el loop() puede quedar vacío
-    // o usarse para tareas no críticas de baja prioridad
-    delay(1000);
+    // Update RC driver to process incoming data
+    rcDriver.update();
+    
+    // Call the function to send modified RC data
+    sendModifiedRcData();
+    
+    // Display data periodically
+    unsigned long currentTime = millis();
+    if (currentTime - lastDisplayTime >= DISPLAY_INTERVAL) {
+        // Create a struct RcInfo local
+        RcInfo info;
+        
+        // Get the current RC data
+        rcDriver.getRcInfo(info);
+        
+        // Calculate time since last frame
+        unsigned long frameAge = currentTime - info.timestamp;
+        
+        // Display RC data
+        Serial.println("--------- RC Data ----------");
+        Serial.print("Throttle: ");
+        Serial.print(info.throttle);
+        Serial.print(" | Yaw: ");
+        Serial.print(info.yaw);
+        Serial.print(" | Pitch: ");
+        Serial.print(info.pitch);
+        Serial.print(" | Roll: ");
+        Serial.println(info.roll);
+        
+        // Display aux channels if available
+        if (info.Naux > 0 && info.aux != nullptr) {
+            Serial.print("Aux channels: ");
+            for (int i = 0; i < info.Naux; i++) {
+                Serial.print(info.aux[i]);
+                if (i < info.Naux - 1) Serial.print(", ");
+            }
+            Serial.println();
+        }
+        
+        Serial.print("Frame age: ");
+        Serial.print(frameAge);
+        Serial.println(" ms");
+
+        unsigned long timeSinceLastPacket = rcDriver.getTimeSinceLastRx();
+        Serial.print("Time since last packet: ");
+        Serial.print(timeSinceLastPacket);
+        Serial.println(" ms");
+        
+        Serial.println("----------------------------");
+        
+        // DO NOT free memory here - RcDriver handles memory management
+        
+        lastDisplayTime = currentTime;
+    }
 }
