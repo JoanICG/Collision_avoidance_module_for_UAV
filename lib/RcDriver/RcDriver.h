@@ -11,7 +11,7 @@
 #define RX2_PIN 16  // ESP32 RX2 pin (GPIO16)
 #define TX2_PIN 17  // ESP32 TX2 pin (GPIO17)
 
-#define DEBUG 0 // Set to 1 to enable debug output
+#define DEBUG 0// Set to 1 to enable debug output
 
 class RcDriver {
 private:

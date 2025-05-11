@@ -2,9 +2,11 @@
 
 #include <Adafruit_VL53L0X.h>
 
-//#define DEBUG
+#define DEBUG_VL  // Descomentar para habilitar mensajes de depuración
 
 #define NSENSORS 5  // Número total de sensores VL53L0X
+#define VL53L0X_FIRST_ADDRESS 0x29 // Dirección I2C por defecto
+
 
 //TODO, reorder for proper pin identification
 enum SensorPosition {
@@ -16,22 +18,10 @@ enum SensorPosition {
 };
 
 // Definir pines XSHUT para los 5 sensores
-#define XSHUT_1   33  // IO15
-#define XSHUT_2   13   // IO4
-#define XSHUT_3   35  // IO13
-#define XSHUT_4   18  // IO14
-#define XSHUT_5   27  // IO27
+const uint8_t xshutPins[] = {33, 23, 35, 18, 27}; 
 
-const uint8_t xshutPins[] = {33, 13, 35, 18, 27}; 
-
-// Pines de interrupción
-#define INTERRUPT_1 32  
-#define INTERRUPT_2 12 
-#define INTERRUPT_3 34 
-#define INTERRUPT_4 19 
-#define INTERRUPT_5 26 
-
-const uint8_t interruptPins[] = {32, 12, 34, 19, 26};
+// Definir pines de interrupción para los 5 sensores
+const uint8_t interruptPins[] = {32, 25, 34, 19, 26};
 
 // Valor en que se activará la interrupción (en mm)
 #define THRESHOLD_VALUE 200
@@ -49,14 +39,14 @@ typedef void (*VL53L0XCallbackFunction)();
 class VL53L0X_Manager {
 private:
   // Instancias de los sensores VL53L0X
-  Adafruit_VL53L0X sensors[NSENSORS];
 
   // Variables para habilitar sensores
   bool sensorEnabled[NSENSORS]; 
 
 public:
   VL53L0X_Manager();
-  
+  Adafruit_VL53L0X sensors[NSENSORS];
+
   // Inicialización
   int begin();
   
