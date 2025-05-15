@@ -1,11 +1,11 @@
 #pragma once
 
 #include <Adafruit_VL53L0X.h>
+#include <Wire.h>
 
 #define DEBUG_VL  // Descomentar para habilitar mensajes de depuración
 
-#define NSENSORS 5  // Número total de sensores VL53L0X
-#define VL53L0X_FIRST_ADDRESS 0x29 // Dirección I2C por defecto
+#define VL53L0X_DEFAULT_ADDRESS 0x29 // Dirección I2C por defecto
 
 
 //TODO, reorder for proper pin identification
@@ -17,12 +17,6 @@ enum SensorPosition {
   BOTTOM = 4
 };
 
-// Definir pines XSHUT para los 5 sensores
-const uint8_t xshutPins[] = {33, 23, 35, 18, 27}; 
-
-// Definir pines de interrupción para los 5 sensores
-const uint8_t interruptPins[] = {32, 25, 34, 19, 26};
-
 // Valor en que se activará la interrupción (en mm)
 #define THRESHOLD_VALUE 200
 
@@ -33,19 +27,34 @@ enum SensorMode {
   MODE_HIGH_PRECISION
 };
 
+typedef struct {
+  Adafruit_VL53L0X *psensor; // pointer to object
+  TwoWire *pwire; // I2C wire object
+  SensorPosition position;            // id for the sensor as its position
+  int address; // I2C address
+  int shutdown_pin;  // which pin for shutdown;
+  int interrupt_pin; // which pin to use for interrupts.
+  Adafruit_VL53L0X::VL53L0X_Sense_config_t
+      sensor_config;     // options for how to use the sensor
+  uint16_t range;        // range value used in continuous mode stuff.
+  int sensor_status; /**
+                            status from last ranging in continuous
+                          **/ 
+} sensorList_t;
+
+// Declare sensors and COUNT_SENSORS as extern
+extern sensorList_t sensors[];
+extern const int COUNT_SENSORS;
+
 // Tipo de función callback para interrupciones
 typedef void (*VL53L0XCallbackFunction)();
 
 class VL53L0X_Manager {
 private:
-  // Instancias de los sensores VL53L0X
-
-  // Variables para habilitar sensores
-  bool sensorEnabled[NSENSORS]; 
+ 
 
 public:
   VL53L0X_Manager();
-  Adafruit_VL53L0X sensors[NSENSORS];
 
   // Inicialización
   int begin();
@@ -65,6 +74,8 @@ public:
   // Limpiar interrupciones en todos los sensores habilitados
   void clearAllInterrupts();
 
+  // Iniciar medición continua en un sensor específico
+  int getMesaurement(SensorPosition sensor, VL53L0X_RangingMeasurementData_t *measure);
 
   // Set operation mode
   //For now, change for all sensors

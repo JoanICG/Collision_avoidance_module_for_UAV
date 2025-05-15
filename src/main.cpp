@@ -5,6 +5,7 @@
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 #include <vl53l0x_manager.h>
+
 // Create an instance of the iBus strategy
 RcDriveriBus ibusStrategy;
 RcDriver rcDriver;
@@ -168,7 +169,8 @@ void sensorMonitorTask(void *parameter) {
         // Process LEFT sensor
         if(sensorLeftInterrupted) {
             if(vl53l0xSensors.isSensorEnabled(LEFT)) {
-                vl53l0xSensors.sensors[LEFT].getRangingMeasurement(&measure1, false);
+                vl53l0xSensors.getMesaurement(LEFT, &measure1);
+                distanceLeft = measure1.RangeMilliMeter;
                 Serial.printf("LEFT sensor triggered: %d mm\n", measure1.RangeMilliMeter);
                 vl53l0xSensors.clearInterrupt(LEFT);
             }
@@ -178,7 +180,7 @@ void sensorMonitorTask(void *parameter) {
         // Process FRONT sensor
         if(sensorFrontInterrupted) {
             if(vl53l0xSensors.isSensorEnabled(FRONT)) {
-                distanceFront = vl53l0xSensors.sensors[FRONT].getRangingMeasurement(&measure2, false);
+                distanceFront = vl53l0xSensors.getMesaurement(FRONT, &measure2);
                 Serial.printf("FRONT sensor triggered: %d mm\n", measure2.RangeMilliMeter);
                 vl53l0xSensors.clearInterrupt(FRONT);
             }
@@ -188,7 +190,7 @@ void sensorMonitorTask(void *parameter) {
         // Process RIGHT sensor
         if(sensorRightInterrupted) {
             if(vl53l0xSensors.isSensorEnabled(RIGHT)) {
-                distanceRight = vl53l0xSensors.sensors[RIGHT].getRangingMeasurement(&measure3, false);
+                distanceRight = vl53l0xSensors.getMesaurement(RIGHT, &measure3);
                 Serial.printf("RIGHT sensor triggered: %d mm\n", measure3.RangeMilliMeter);
                 vl53l0xSensors.clearInterrupt(RIGHT);
             }
@@ -198,7 +200,7 @@ void sensorMonitorTask(void *parameter) {
         // Process BACK sensor
         if(sensorBackInterrupted) {
             if(vl53l0xSensors.isSensorEnabled(BACK)) {
-                distanceBack = vl53l0xSensors.sensors[BACK].getRangingMeasurement(&measure4, false);
+                distanceBack = vl53l0xSensors.getMesaurement(BACK, &measure4);
                 Serial.printf("BACK sensor triggered: %d mm\n", measure4.RangeMilliMeter);
                 vl53l0xSensors.clearInterrupt(BACK);
             }
@@ -208,7 +210,7 @@ void sensorMonitorTask(void *parameter) {
         // Process BOTTOM sensor
         if(sensorBottomInterrupted) {
             if(vl53l0xSensors.isSensorEnabled(BOTTOM)) {
-                distanceBottom = vl53l0xSensors.sensors[BOTTOM].getRangingMeasurement(&measure5, false);
+                distanceBottom = vl53l0xSensors.getMesaurement(BOTTOM, &measure5);
                 Serial.printf("BOTTOM sensor triggered: %d mm\n", measure5.RangeMilliMeter);
                 vl53l0xSensors.clearInterrupt(BOTTOM);
             }
@@ -227,6 +229,9 @@ void setup() {
     
     Serial.println("\n=== FreeRTOS RC Driver System ===");
     
+    Wire.begin(); // Initialize I2C bus for VL53L0X sensors
+    delay(100); // Give time for I2C bus to stabilize
+
     // Configure GPIO12 safely before anything else
     pinMode(12, OUTPUT);
     digitalWrite(12, LOW);
@@ -252,7 +257,11 @@ void setup() {
     Serial.println("Initializing VL53L0X sensors...");
     if (vl53l0xSensors.begin() == 0) {  // Usar vl53l0xSensors en lugar de vl53l0xManager
         Serial.println("Error initializing VL53L0X sensors!");
-        while(1) { delay(100); } // Fatal error
+        //while(1) { delay(100); } // Fatal error
+    }
+
+    for(int i=0; i<COUNT_SENSORS; i++) {
+        Serial.printf("Sensor %d status: %d\n", i, sensors[i].sensor_status);
     }
 
     // Set up sensor interrupts with threshold of 300mm
@@ -319,7 +328,7 @@ void setup() {
         NULL,                 // Parameters
         2,                    // Priority (between RC and display)
         &sensorTaskHandle,    // Handle
-        1                     // Core (1 = application core)
+        0                     // Core (1 = application core)
     );
     
     Serial.println("FreeRTOS scheduler started");

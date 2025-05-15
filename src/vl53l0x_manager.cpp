@@ -1,143 +1,138 @@
 #include <Wire.h>
 #include "vl53l0x_manager.h"
-// Definición de la instancia global
+#include <Arduino.h> // For pinMode, digitalWrite, delay, Serial
+
+
+// Define and initialize the global sensors array
+sensorList_t sensors[]{
+    {new Adafruit_VL53L0X(), &Wire, LEFT, 0x30, 35, 34,
+     Adafruit_VL53L0X::VL53L0X_SENSE_DEFAULT, 0, 0},
+    {new Adafruit_VL53L0X(), &Wire, FRONT, 0x31, 23, 25,
+     Adafruit_VL53L0X::VL53L0X_SENSE_DEFAULT, 0, 0},
+    {new Adafruit_VL53L0X(), &Wire, RIGHT, 0x32, 33, 32,
+     Adafruit_VL53L0X::VL53L0X_SENSE_DEFAULT, 0, 0},
+    {new Adafruit_VL53L0X(), &Wire, BACK, 0x33, 18, 19,
+     Adafruit_VL53L0X::VL53L0X_SENSE_DEFAULT, 0, 0},
+    {new Adafruit_VL53L0X(), &Wire, BOTTOM, 0x34, 27, 26,
+     Adafruit_VL53L0X::VL53L0X_SENSE_DEFAULT, 0, 0}
+};
+
+// Define COUNT_SENSORS
+const int COUNT_SENSORS = sizeof(sensors) / sizeof(sensors[0]);
+
+// Definition for the global manager instance
 VL53L0X_Manager vl53l0xSensors;
 
 // --- Constructor ---
 VL53L0X_Manager::VL53L0X_Manager() {
     // Inicialización de variables miembro si es necesario
-    for (int i = 0; i < NSENSORS; ++i) {
-        sensorEnabled[i] = false;
+    for (int i = 0; i < COUNT_SENSORS; ++i) {
+        sensors[i].sensor_status = -1; // Inicializar el estado del sensor como no detectado
+        pinMode(sensors[i].shutdown_pin, OUTPUT);
+        pinMode(sensors[i].interrupt_pin, INPUT_PULLUP); // Configurar pines de interrupción
     }
 }
 
 // --- Inicialización ---
 int VL53L0X_Manager::begin() {
-    // Asumiendo que Wire.begin() y Wire.setClock() se llaman en main.cpp/setup()
-
     #ifdef DEBUG_VL
         Serial.println("Iniciando gestor de sensores VL53L0X...");
     #endif
 
-    // 1. Poner todos los sensores en reset (XSHUT LOW) usando el array xshutPins
+    // 1. Poner todos los sensores en reset (XSHUT LOW) y configurar pines
     #ifdef DEBUG_VL
-        Serial.println("Reseteando todos los sensores VL53L0X...");
+        Serial.println("Reseteando todos los sensores VL53L0X y configurando pines...");
     #endif
-    for (int i = 0; i < NSENSORS; ++i) {
-        pinMode(xshutPins[i], OUTPUT);
-        pinMode(interruptPins[i], INPUT_PULLUP); // Configurar pines de interrupción como INPUT_PULLUP
-        digitalWrite(xshutPins[i], LOW);
-    }
-    delay(50); // Pequeña pausa tras resetear
-
+    for (int i = 0; i < COUNT_SENSORS; ++i) 
+        digitalWrite(sensors[i].shutdown_pin, LOW); // Poner en reset 
+    delay(50); // Pequeña pausa tras resetear todos
+    
     // 2. Inicializar y asignar direcciones I2C únicas secuencialmente
-    bool all_sensors_ok = true;
-    // bool sensors_found[NSENSORS] = {false, false, false, false, false}; // sensors_found is now part of the class or implicitly handled by sensorEnabled
-    for (int i = 0; i < NSENSORS; ++i) {
-        // Usar el índice 'i' que corresponde a SensorPosition (LEFT=0, FRONT=1, etc.)
+    int sensors_initialized_count = 0;
+
+    for (int i = 0; i < COUNT_SENSORS; ++i) {
         #ifdef DEBUG_VL
-                SensorPosition currentPosition = static_cast<SensorPosition>(i);
                 Serial.printf("--- Inicializando sensor %d (Posición: %d, Pin XSHUT: %d) ---\n",
-                            i + 1, currentPosition, xshutPins[i]);
+                            i + 1, static_cast<SensorPosition>(i), sensors[i].shutdown_pin);
         #endif
 
-        // Sacar el sensor actual del reset usando el array xshutPins
-        digitalWrite(xshutPins[i], HIGH);
-        delay(150); // Dar tiempo al sensor para arrancar (increased from 50ms)
+        // Sacar SOLO el sensor actual del reset
+        digitalWrite(sensors[i].shutdown_pin, HIGH);
+        delay(10); // Dar tiempo al sensor para arrancar
 
-        // Pre-check: Ping I2C address 0x29 before calling library's begin()
-        Wire.beginTransmission(0x29);
-        byte pre_check_error = Wire.endTransmission();
-
-        if (pre_check_error != 0) {
+        // Pre-check: Ping I2C address 0x29 (default address)
+        Wire.beginTransmission(VL53L0X_DEFAULT_ADDRESS);
+        if (Wire.endTransmission() != 0) {
             #ifdef DEBUG_VL
-                Serial.printf("ERROR: Sensor %d no detectado en 0x29 (Error I2C pre-check: %d). No se llamará a sensors[%d].begin().\n", i + 1, pre_check_error, i);
+                Serial.printf("ERROR: Sensor %d (Pos: %d) no detectado en 0x29 . No se llamará a sensors[%d].begin().\n",
+                              i + 1, sensors[i].shutdown_pin, i);
             #endif
-            digitalWrite(xshutPins[i], LOW); // Apagarlo para no interferir
-            all_sensors_ok = false;
-            sensorEnabled[i] = false;
+            digitalWrite(sensors[i].shutdown_pin, LOW); // Mantener en reset si no se detecta
+            sensors[i].sensor_status = -1; // Marcar como no detectado
             continue; // Saltar al siguiente sensor
         }
 
-        // Intentar inicializar el sensor en la dirección I2C por defecto (0x29)
         #ifdef DEBUG_VL
-        Serial.printf("Sensor %d detectado en 0x29 (pre-check OK). Llamando a sensors[%d].begin()...\n", i + 1, i);
+        Serial.printf("Sensor %d (Pos: %d) detectado en 0x29 (pre-check OK). Llamando a sensors[%d].begin()...\n",
+                      i + 1, sensors[i].shutdown_pin, i);
         #endif
-        if (!sensors[i].begin()) { // La librería Adafruit maneja la inicialización básica
+        if (!sensors[i].psensor->begin(sensors[i].address, false, sensors[i].pwire,
+                                        sensors[i].sensor_config)) { // Explicitly pass default address and Wire
             #ifdef DEBUG_VL
-                        Serial.printf("ERROR: Fallo en sensors[%d].begin() (después de pre-check OK). Verifique conexiones.\n", i);
+                Serial.printf("ERROR: Fallo en sensors[%d].begin() para sensor %d (Pos: %d) (después de pre-check OK).\n",
+                              i, i + 1, sensors[i].address);
             #endif
-            // Apagarlo de nuevo para no interferir con los siguientes
-            digitalWrite(xshutPins[i], LOW);
-            all_sensors_ok = false;
-            sensorEnabled[i] = false; // Ensure it's marked as not enabled
+            digitalWrite(sensors[i].shutdown_pin, LOW); // Poner en reset si begin() falla
+            sensors[i].sensor_status = -1;
             continue; // Saltar al siguiente sensor
         }
 
-        // Sensor fue encontrado y sensors[i].begin() tuvo éxito
         #ifdef DEBUG_VL
-                Serial.printf("Sensor %d inicializado correctamente en 0x29.\n", i + 1);
+            Serial.printf("Sensor %d (Pos: %d) inicializado correctamente en 0x29.\n", i + 1, sensors[i].address);
         #endif
-        // sensors_found[i] = true; // Mark as found if you still use this array
 
-        // Asignar nueva dirección I2C única (0x2A, 0x2B, ...)
-        uint8_t newAddress = VL53L0X_FIRST_ADDRESS + i; // Asegúrate de definir VL53L0X_FIRST_ADDRESS (e.g., 0x2A)
+        // Verificar si el sensor responde en la nueva (o actual si era 0x29) dirección
+        Wire.beginTransmission(sensors[i].address);
+        byte address_check_error = Wire.endTransmission();
+
+        if (address_check_error == 0) {
+            #ifdef DEBUG_VL
+                Serial.printf("Sensor %d (Pos: %d) responde correctamente en 0x%02X.\n",
+                              i + 1, sensors[i].address, sensors[i].address);
+            #endif
+            sensors[i].sensor_status = 0; // Marcar como inicializado]
+            sensors_initialized_count++;
+            // Configurar modo por defecto (ej: Standard)
+        } else {
+            #ifdef DEBUG_VL
+                Serial.printf("ERROR: Sensor %d (Pos: %d) no responde en la dirección 0x%02X después del cambio/confirmación (Error I2C: %d).\n",
+                              i + 1, sensors[i].address, sensors[i].address, address_check_error);
+            #endif
+            digitalWrite(sensors[i].shutdown_pin, LOW); // Poner en reset si no responde en la nueva dirección
+            sensors[i].sensor_status = -1;
+        }
         #ifdef DEBUG_VL
-                Serial.printf("Cambiando dirección del sensor %d a 0x%02X...\n", i + 1, newAddress);
+            Serial.println("---");
         #endif
-        sensors[i].setAddress(newAddress);
-        delay(10); // Pausa después de cambiar la dirección
-
-        // Verificar si el sensor responde en la nueva dirección (importante)
-        Wire.beginTransmission(newAddress);
-        byte error = Wire.endTransmission();
-        if (error == 0) {
-            #ifdef DEBUG_VL
-                        Serial.printf("Sensor %d responde correctamente en 0x%02X.\n", i + 1, newAddress);
-            #endif
-             sensorEnabled[i] = true; // Marcar como habilitado
-             // sensors_found[i] = true; // Marcar como encontrado
-             // Configurar modo por defecto (ej: Standard)
-             // Es mejor llamar a configureSensorMode aquí si ya está implementada
-             // Uncomment to use the configureSensorMode function instead of manual configuration
-             configureSensorMode(static_cast<SensorPosition>(i), MODE_STANDARD);
-
-            #ifdef DEBUG_VL
-                        Serial.printf("Pin de interrupción %d (GPIO %d) configurado como INPUT_PULLUP.\n", i + 1, interruptPins[i]);
-            #endif
-
-            } else {
-                #ifdef DEBUG_VL
-                            Serial.printf("ERROR: Sensor %d no responde en la nueva dirección 0x%02X después del cambio (Error I2C: %d).\n", i + 1, newAddress, error);
-                #endif
-                // Apagarlo para no interferir
-                digitalWrite(xshutPins[i], LOW);
-                all_sensors_ok = false;
-                // Dejar el sensor como no habilitado (sensorEnabled[i] ya es false)
-            }
-            #ifdef DEBUG_VL
-                    Serial.println("---");
-            #endif
     }
 
-#ifdef DEBUG_VL
-    if (all_sensors_ok == NSENSORS) {
+    #ifdef DEBUG_VL
+    if (sensors_initialized_count == COUNT_SENSORS) {
         Serial.println("Todos los sensores VL53L0X disponibles inicializados correctamente.");
-    } else if (all_sensors_ok < NSENSORS) {
-         Serial.printf("ADVERTENCIA: Se inicializaron solo los sensores: ");
-            for (int i = 0; i < NSENSORS; ++i) {
-                if (sensorEnabled[i]) {
-                    Serial.printf("%d ", i + 1); // Mostrar solo los habilitados
-                }
+    } else if (sensors_initialized_count > 0) {
+        Serial.printf("ADVERTENCIA: Se inicializaron %d de %d sensores: ", sensors_initialized_count, COUNT_SENSORS);
+        for (int k = 0; k < COUNT_SENSORS; ++k) {
+            if (sensors[k].sensor_status >= 0) {
+                Serial.printf("%d(0x%02X) ", k + 1, VL53L0X_DEFAULT_ADDRESS + k);
             }
-            Serial.println(".");  
+        }
+        Serial.println(".");
     } else {
-         Serial.println("ERROR CRÍTICO: Ningún sensor VL53L0X pudo ser inicializado.");
+        Serial.println("ERROR CRÍTICO: Ningún sensor VL53L0X pudo ser inicializado.");
     }
-#endif
+    #endif
 
-    // Decidir qué retornar: ¿éxito solo si todos funcionan, o si al menos uno funciona?
-    return all_sensors_ok ? 0 : -1; // Retornar 0 si todos los sensores están habilitados, -1 si no
+    return (sensors_initialized_count > 0) ? 0 : -1; // Retornar 0 si al menos un sensor está habilitado, -1 si ninguno
 }
 
 // --- Configuración ---
@@ -146,7 +141,7 @@ int VL53L0X_Manager::configureSensorMode(SensorPosition sensor, SensorMode mode)
     #ifdef DEBUG_VL
         Serial.printf("Configurando sensor %d en modo %d...\n", sensor, mode);
     #endif
-    if(sensorEnabled[sensor] == false) {
+    if(sensors[sensor].sensor_status < 0) {
         #ifdef DEBUG_VL
             Serial.printf("Sensor %d no habilitado. No se puede configurar el modo.\n", sensor);    
         #endif
@@ -154,19 +149,19 @@ int VL53L0X_Manager::configureSensorMode(SensorPosition sensor, SensorMode mode)
     }
     switch (mode) {
         case MODE_STANDARD:
-            sensors[sensor].setVcselPulsePeriod(VL53L0X_VCSEL_PERIOD_PRE_RANGE, 14);
-            sensors[sensor].setVcselPulsePeriod(VL53L0X_VCSEL_PERIOD_FINAL_RANGE, 10);
-            sensors[sensor].setMeasurementTimingBudgetMicroSeconds(33000);
+            sensors[sensor].psensor->setVcselPulsePeriod(VL53L0X_VCSEL_PERIOD_PRE_RANGE, 14);
+            sensors[sensor].psensor->setVcselPulsePeriod(VL53L0X_VCSEL_PERIOD_FINAL_RANGE, 10);
+            sensors[sensor].psensor->setMeasurementTimingBudgetMicroSeconds(33000);
             break;
         case MODE_LONG_RANGE:
-            sensors[sensor].setVcselPulsePeriod(VL53L0X_VCSEL_PERIOD_PRE_RANGE, 18);
-            sensors[sensor].setVcselPulsePeriod(VL53L0X_VCSEL_PERIOD_FINAL_RANGE, 14);
-            sensors[sensor].setMeasurementTimingBudgetMicroSeconds(200000);
+            sensors[sensor].psensor->setVcselPulsePeriod(VL53L0X_VCSEL_PERIOD_PRE_RANGE, 18);
+            sensors[sensor].psensor->setVcselPulsePeriod(VL53L0X_VCSEL_PERIOD_FINAL_RANGE, 14);
+            sensors[sensor].psensor->setMeasurementTimingBudgetMicroSeconds(200000);
             break;
         case MODE_HIGH_PRECISION:
-            sensors[sensor].setVcselPulsePeriod(VL53L0X_VCSEL_PERIOD_PRE_RANGE, 14);
-            sensors[sensor].setVcselPulsePeriod(VL53L0X_VCSEL_PERIOD_FINAL_RANGE, 10);
-            sensors[sensor].setMeasurementTimingBudgetMicroSeconds(200000); // Aumentar el tiempo de medición
+            sensors[sensor].psensor->setVcselPulsePeriod(VL53L0X_VCSEL_PERIOD_PRE_RANGE, 14);
+            sensors[sensor].psensor->setVcselPulsePeriod(VL53L0X_VCSEL_PERIOD_FINAL_RANGE, 10);
+            sensors[sensor].psensor->setMeasurementTimingBudgetMicroSeconds(200000); // Aumentar el tiempo de medición
             break;
     }
     return 0;
@@ -178,7 +173,7 @@ int VL53L0X_Manager::setAllSensorsMode(SensorMode mode) {
     #endif
     bool error = false;
     // Código para configurar el modo de todos los sensores
-    for (int i = 0; i < NSENSORS; ++i) {
+    for (int i = 0; i < COUNT_SENSORS; ++i) {
         if(configureSensorMode(static_cast<SensorPosition>(i), mode) != 0) {
             error = true; // Si falla al configurar un sensor, marcar error
         }
@@ -191,36 +186,43 @@ int VL53L0X_Manager::setupSensorInterrupt(SensorPosition sensor, uint16_t thresh
     #ifdef DEBUG_VL
         Serial.printf("Configurando interrupción para sensor %d con umbral %d...\n", sensor, threshold);
     #endif
-    if(sensorEnabled[sensor] == false) {
+    if(sensors[sensor].sensor_status != 0) {
         #ifdef DEBUG_VL
             Serial.printf("Sensor %d no habilitado. No se puede configurar la interrupción.\n", sensor);    
         #endif
         return -1; // Si el sensor no está habilitado, salir de la función
     }
-
+    Serial.printf("Configurando interrupción para el sensor %d...\n", sensor);
     // Attach interrupt callback function
-    attachInterrupt(digitalPinToInterrupt(interruptPins[sensor]), callback, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(sensors[sensor].interrupt_pin), callback, CHANGE);
     
     // Configurar el sensor para la interrupción
-    sensors[sensor].setGpioConfig(VL53L0X_DEVICEMODE_CONTINUOUS_RANGING,
+    Wire.beginTransmission(sensors[sensor].address);
+    if (Wire.endTransmission() != 0) {
+        #ifdef DEBUG_VL
+        Serial.printf("ERROR: Sensor %d no responde en la dirección I2C 0x%02X.\n", sensor, sensors[sensor].address);
+        #endif
+        return -1; // Salir con error
+    }
+    
+    Serial.printf("Configurando asdasd para el sensor %d...\n", sensor);
+    sensors[sensor].psensor->setGpioConfig(VL53L0X_DEVICEMODE_CONTINUOUS_RANGING,
                                    VL53L0X_GPIOFUNCTIONALITY_THRESHOLD_CROSSED_LOW,
                                    VL53L0X_INTERRUPTPOLARITY_LOW);
 
     // Configurar los límites de interrupción
     // 50mm as low threshold - converting to FixPoint1616_t format (Q16.16)
-    FixPoint1616_t lowThreshold = 50 << 16; // Left shift by 16 bits for fixed-point format
+    FixPoint1616_t lowThreshold = threshold << 16; // Left shift by 16 bits for fixed-point format
     FixPoint1616_t highThreshold = threshold << 16; // Convert to FixPoint1616_t format
     #ifdef DEBUG_VL
         Serial.printf("Configurando límites de interrupción: Bajo %d, Alto %d...\n", lowThreshold, highThreshold);
-        sensors[sensor].setInterruptThresholds(lowThreshold, highThreshold, true);
-        Serial.println("Set Mode VL53L0X_DEVICEMODE_CONTINUOUS_RANGING... ");
-        sensors[sensor].setDeviceMode(VL53L0X_DEVICEMODE_CONTINUOUS_RANGING, true);
-    #else
-        sensors[sensor].setInterruptThresholds(lowThreshold, highThreshold, false);
-        sensors[sensor].setDeviceMode(VL53L0X_DEVICEMODE_CONTINUOUS_RANGING, false);
+        Serial.println("Set Mode VL53L0X_DEVICEMODE_CONTINUOUS_RANGING... ");        
     #endif
-    // Iniciar medición continua
-    sensors[sensor].startMeasurement();
+    sensors[sensor].psensor->setInterruptThresholds(lowThreshold, highThreshold, true);
+    sensors[sensor].psensor->setDeviceMode(VL53L0X_DEVICEMODE_CONTINUOUS_RANGING, true);
+
+    Serial.printf("Configurando bbb para el sensor %d...\n", sensor);
+    sensors[sensor].psensor->startMeasurement();
 
     return 0;
 }
@@ -230,25 +232,52 @@ int VL53L0X_Manager::clearInterrupt(SensorPosition sensor) {
         Serial.printf("Limpiando interrupción para sensor %d...\n", sensor);
     #endif
 
-    if(sensorEnabled[sensor] == false) {
+    if(sensors[sensor].sensor_status < 0) {
         #ifdef DEBUG_VL
             Serial.printf("Sensor %d no habilitado. No se puede limpiar la interrupción.\n", sensor);    
         #endif
         return -1; // Si el sensor no está habilitado, salir de la función
     }
     
-    sensors[sensor].clearInterruptMask(false);
-
+    sensors[sensor].psensor->clearInterruptMask(false);
+    Serial.printf("Limpiado\n");
     return 0; // Placeholder
 }
 
 
 bool VL53L0X_Manager::isSensorEnabled(SensorPosition sensor) {
-    // Código para verificar si un sensor está habilitado
-   
-    return sensorEnabled[sensor];
+    if(sensors[sensor].sensor_status >= 0) {
+        Serial.printf("Sensor %d está habilitado.\n", sensor);
+        return true; // Sensor está habilitado
+    } else {
+        Serial.printf("Sensor %d NO está habilitado.\n", sensor);
 
+        return false; // Sensor no está habilitado
+    }
 }
+
+// Add VL53L0X_Manager:: to the function definition
+int VL53L0X_Manager::getMesaurement(SensorPosition sensor, VL53L0X_RangingMeasurementData_t *measure){
+
+    #ifdef DEBUG_VL
+        Serial.printf("Obteniendo medición del sensor %d...\n", static_cast<int>(sensor)); // Cast enum to int for printf
+    #endif
+
+    if(sensors[sensor].sensor_status < 0) { // Access sensorEnabled as a class member
+        #ifdef DEBUG_VL
+            Serial.printf("Sensor %d no habilitado. No se puede obtener la medición.\n", static_cast<int>(sensor));    
+        #endif
+        return -1; // Si el sensor no está habilitado, salir de la función
+    }
+    // The Wire.beginTransmission/endTransmission check here is redundant if the sensor is already known to be enabled
+    // and its address is correctly set. This check is more for initial discovery or if I2C bus is unstable.
+    // Consider if this check is needed every time or only if an error is suspected.
+    // For now, keeping it as per your original code.
+   
+    sensors[sensor].psensor->getRangingMeasurement(measure);
+    return measure->RangeMilliMeter;
+}
+
 
 // --- Modos de Operación (Aplicar a todos) ---
 
@@ -256,7 +285,7 @@ void VL53L0X_Manager::setStandardMode() {
     #ifdef DEBUG_VL
         Serial.println("Configurando todos los sensores en modo estándar...");
     #endif
-    for (int i = 0; i < NSENSORS; ++i) {
+    for (int i = 0; i < COUNT_SENSORS; ++i) {
         configureSensorMode(static_cast<SensorPosition>(i), MODE_STANDARD);
     }
 }
@@ -265,7 +294,7 @@ void VL53L0X_Manager::setLongRangeMode() {
     #ifdef DEBUG_VL
         Serial.println("Configurando todos los sensores en modo de largo alcance...");
     #endif
-    for (int i = 0; i < NSENSORS; ++i) {
+    for (int i = 0; i < COUNT_SENSORS; ++i) {
         configureSensorMode(static_cast<SensorPosition>(i), MODE_LONG_RANGE);
     }
 }
@@ -274,7 +303,7 @@ void VL53L0X_Manager::setPrecisionMode() {
     #ifdef DEBUG_VL
         Serial.println("Configurando todos los sensores en modo de alta precisión...");
     #endif
-    for (int i = 0; i < NSENSORS; ++i) {
+    for (int i = 0; i < COUNT_SENSORS; ++i) {
         configureSensorMode(static_cast<SensorPosition>(i), MODE_HIGH_PRECISION);
     }
 }
