@@ -65,7 +65,10 @@ public:
   
     // Configurar interrupciones en un sensor individual
   int setupSensorInterrupt(SensorPosition sensor, uint16_t threshold, VL53L0XCallbackFunction callback);
- 
+  
+  // Reset the sensor
+  int resetSensor(SensorPosition sensor);
+
   int clearInterrupt(SensorPosition sensor);
   
   // Getters para comprobar si los sensores están habilitados
@@ -76,6 +79,8 @@ public:
 
   // Iniciar medición continua en un sensor específico
   int getMesaurement(SensorPosition sensor, VL53L0X_RangingMeasurementData_t *measure);
+
+ 
 
   // Set operation mode
   //For now, change for all sensors

@@ -6,32 +6,18 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
-
-// Web server on port 80
-AsyncWebServer server(80);
-AsyncWebSocket ws("/ws");
-
+ 
 // Mutex for data protection
 SemaphoreHandle_t webDataSemaphore = NULL;
 
 // Current data for the web server
 WebPageData currentWebData;
 
-// Task handle
-TaskHandle_t webServerTaskHandle = NULL;
-
 // Flag indicating if we have new data to send
 volatile bool newDataAvailable = false;
 
-// WiFi connection timeout (in milliseconds)
-const unsigned long WIFI_TIMEOUT = 20000;
-
-// Forward declarations
-void handleWebSocketMessage(void *arg, uint8_t *data, size_t len);
-void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len);
-void notifyClients();
-const char* generateHTML();
-void webServerUpdateTask(void* parameter);
+// Reference to the websocket for client communication
+AsyncWebSocket* wsPtr = NULL;
 
 // HTML content (will be stored in program memory to save RAM)
 const char index_html[] PROGMEM = R"rawliteral(
@@ -225,19 +211,46 @@ const char* sensorPositionToStringWeb(SensorPosition pos) {
     }
 }
 
-// Initialize the web server and start the task
-void startWebServerTask(const char* ssid, const char* password) {
-    // Create the semaphore for data protection
-    webDataSemaphore = xSemaphoreCreateMutex();
+// Event handler for WebSocket events
+void handleWebSocketEvent(AsyncWebSocket* server, AsyncWebSocketClient* client, AwsEventType type, void* arg, uint8_t* data, size_t len) {
+    switch (type) {
+        case WS_EVT_CONNECT:
+            Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
+            break;
+        case WS_EVT_DISCONNECT:
+            Serial.printf("WebSocket client #%u disconnected\n", client->id());
+            break;
+        case WS_EVT_DATA:
+            // Handle incoming messages if needed
+            if (((AwsFrameInfo*)arg)->final && ((AwsFrameInfo*)arg)->index == 0 && ((AwsFrameInfo*)arg)->len == len && ((AwsFrameInfo*)arg)->opcode == WS_TEXT) {
+                data[len] = 0;
+                Serial.printf("Received WebSocket message: %s\n", (char*)data);
+            }
+            break;
+        case WS_EVT_PONG:
+        case WS_EVT_ERROR:
+            break;
+    }
+}
+
+// Initialize the web server and websocket system
+void initWebServer(AsyncWebServer* server, AsyncWebSocket* ws, const char* ssid, const char* password) {
+    // Store global reference to websocket
+    wsPtr = ws;
+    
+    // Create the semaphore for data protection if not already created
     if (webDataSemaphore == NULL) {
-        Serial.println("Error creating webDataSemaphore!");
-        return;
+        webDataSemaphore = xSemaphoreCreateMutex();
+        if (webDataSemaphore == NULL) {
+            Serial.println("Error creating webDataSemaphore!");
+            return;
+        }
     }
     
     // Initialize webData with defaults
     if (xSemaphoreTake(webDataSemaphore, portMAX_DELAY) == pdTRUE) {
         memset(&currentWebData, 0, sizeof(WebPageData));
-        for (int i = 0; i < COUNT_SENSORS; i++) {
+        for (int i = 0; i < 5; i++) {
             currentWebData.sensorDistances[i] = 0xFFFF; // Max value to indicate no reading
             currentWebData.sensorStatus[i] = false;     // Default to not active
         }
@@ -249,178 +262,147 @@ void startWebServerTask(const char* ssid, const char* password) {
         xSemaphoreGive(webDataSemaphore);
     }
     
-    // Create the web server task
-    xTaskCreatePinnedToCore(
-        webServerUpdateTask,    // Function
-        "WebServerTask",        // Name
-        8192,                   // Stack size (increased for web server)
-        (void*)new String[2]{String(ssid), String(password)},  // Parameters: WiFi credentials
-        1,                      // Priority
-        &webServerTaskHandle,   // Handle
-        1                       // Core 1
-    );
-}
-
-// Task to run the web server and send updates to clients
-void webServerUpdateTask(void* parameter) {
-    // Get WiFi credentials from parameters
-    String* credentials = (String*)parameter;
-    String ssid = credentials[0];
-    String password = credentials[1];
-    delete[] credentials;  // Clean up allocated memory
+    // Set WiFi mode and create Access Point
+    WiFi.mode(WIFI_AP);
+    delay(100);
     
-    Serial.println("Web server task started");
-    Serial.print("Connecting to WiFi: ");
-    Serial.println(ssid);
-    
-    // Connect to WiFi
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid.c_str(), password.c_str());
-    
-    // Wait for WiFi connection with timeout
-    unsigned long startTime = millis();
-    while (WiFi.status() != WL_CONNECTED && millis() - startTime < WIFI_TIMEOUT) {
-        delay(100);
-        Serial.print(".");
-    }
-    
-    if (WiFi.status() != WL_CONNECTED) {
-        Serial.println("\nFailed to connect to WiFi. Web server will not start.");
-        vTaskDelete(NULL);  // Delete this task
+    if (!WiFi.softAP(ssid, password)) {
+        Serial.println("Failed to create WiFi Access Point!");
         return;
     }
     
-    Serial.println("\nWiFi connected!");
+    Serial.print("WiFi Access Point created. SSID: ");
+    Serial.println(ssid);
     Serial.print("IP Address: ");
-    Serial.println(WiFi.localIP());
+    Serial.println(WiFi.softAPIP());
     
-    // Configure WebSocket events
-    ws.onEvent(onEvent);
-    server.addHandler(&ws);
+    // Setup WebSocket handler
+    ws->onEvent(handleWebSocketEvent);
+    server->addHandler(ws);
     
     // Route for root / web page
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-        request->send_P(200, "text/html", index_html);
+    server->on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+        request->send(200, "text/html", index_html);
     });
     
     // Start server
-    server.begin();
+    server->begin();
     Serial.println("HTTP server started");
+}
+
+// Variables para control de actualización periódica
+TaskHandle_t webUpdateTaskHandle = NULL;
+volatile bool forceUpdate = false;
+
+// Función para actualizar datos en el servidor web
+void updateWebServerData(const WebPageData& newData) {
+    if (webDataSemaphore == NULL) {
+        // Crear el semáforo si no existe
+        webDataSemaphore = xSemaphoreCreateMutex();
+        if (webDataSemaphore == NULL) {
+            Serial.println("Error creating webDataSemaphore!");
+            return;
+        }
+    }
     
-    // Main task loop
+    // Simplemente actualiza los datos en currentWebData
+    if (xSemaphoreTake(webDataSemaphore, pdMS_TO_TICKS(100)) == pdTRUE) {
+        // Actualizar los datos
+        currentWebData = newData;
+        // Establecer flag para forzar actualización si es necesario (opcional)
+        // forceUpdate = true;  // Descomenta si quieres actualizaciones instantáneas en ciertos casos
+        xSemaphoreGive(webDataSemaphore);
+    }
+}
+
+// Tarea para enviar actualizaciones periódicamente
+void webUpdateTask(void* parameter) {
+    int updateInterval = *((int*)parameter);
+    delete (int*)parameter; // Liberar memoria del parámetro
+    
+    Serial.printf("Web update task started with interval: %d ms\n", updateInterval);
+    
     TickType_t xLastWakeTime = xTaskGetTickCount();
-    const TickType_t xFrequency = pdMS_TO_TICKS(100);  // 100ms update interval
+    const TickType_t xFrequency = pdMS_TO_TICKS(updateInterval);
     
-    for(;;) {
-        // Clean WebSocket clients
-        ws.cleanupClients();
-        
-        // Check if we have new data to send
-        if (newDataAvailable) {
-            notifyClients();
-            newDataAvailable = false;
+    for (;;) {
+        // Verificar si hay clientes conectados antes de procesar
+        if (wsPtr && wsPtr->count() > 0) {
+            if (xSemaphoreTake(webDataSemaphore, pdMS_TO_TICKS(100)) == pdTRUE) {
+                // Preparar JSON
+                JsonDocument jsonDoc;
+                
+                // Añadir datos RC
+                auto rcJson = jsonDoc["rc"].to<JsonObject>();
+                rcJson["throttle"] = currentWebData.rc.throttle;
+                rcJson["yaw"] = currentWebData.rc.yaw;
+                rcJson["pitch"] = currentWebData.rc.pitch;
+                rcJson["roll"] = currentWebData.rc.roll;
+                
+                // Añadir canales aux si disponibles
+                if (currentWebData.rc.Naux > 0 && currentWebData.rc.aux != nullptr) {
+                    auto auxJson = rcJson["aux"].to<JsonArray>();
+                    for (int i = 0; i < currentWebData.rc.Naux; i++) {
+                        auxJson.add(currentWebData.rc.aux[i]);
+                    }
+                }
+                
+                // Añadir datos de sensores
+                auto sensorsJson = jsonDoc["sensors"].to<JsonObject>();
+                auto distancesJson = sensorsJson["distances"].to<JsonArray>();
+                auto statusJson = sensorsJson["status"].to<JsonArray>();
+                
+                for (int i = 0; i < 5; i++) {
+                    distancesJson.add(currentWebData.sensorDistances[i]);
+                    statusJson.add(currentWebData.sensorStatus[i]);
+                }
+                
+                // Añadir datos del giroscopio
+                auto gyroJson = jsonDoc["gyro"].to<JsonObject>();
+                gyroJson["roll"] = currentWebData.gyroRoll;
+                gyroJson["pitch"] = currentWebData.gyroPitch;
+                gyroJson["yaw"] = currentWebData.gyroYaw;
+                
+                // Añadir timestamps
+                jsonDoc["lastRcUpdate"] = currentWebData.lastRcUpdate;
+                jsonDoc["lastSensorUpdate"] = currentWebData.lastSensorUpdate;
+                jsonDoc["serverTime"] = millis(); // Tiempo actual del servidor
+                
+                // Serializar JSON a string
+                String jsonString;
+                serializeJson(jsonDoc, jsonString);
+                
+                // Soltar semáforo antes de enviar para no bloquear
+                xSemaphoreGive(webDataSemaphore);
+                
+                // Enviar a todos los clientes
+                try {
+                    wsPtr->textAll(jsonString);
+                    Serial.println("WS data sent");
+                } catch (...) {
+                    Serial.println("Error sending WebSocket data");
+                }
+            }
         }
         
-        // Periodic check of WiFi connection
-        if (WiFi.status() != WL_CONNECTED) {
-            Serial.println("WiFi disconnected! Attempting to reconnect...");
-            WiFi.reconnect();
-        }
-        
-        // Wait for the next update time
+        // Esperar hasta el próximo intervalo
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
 
-// Update the web server data from elsewhere in the code
-void updateWebServerData(const WebPageData& newData) {
-    if (xSemaphoreTake(webDataSemaphore, pdMS_TO_TICKS(100)) == pdTRUE) {
-        // Update the data
-        currentWebData = newData;
-        newDataAvailable = true;
-        xSemaphoreGive(webDataSemaphore);
-    }
-}
-
-// Notify all connected WebSocket clients with current data
-void notifyClients() {
-    // Take semaphore to safely access data
-    if (xSemaphoreTake(webDataSemaphore, pdMS_TO_TICKS(100)) == pdTRUE) {
-        // Create JSON document
-        StaticJsonDocument<1024> jsonDoc;  // Size depends on your data
-        
-        // Add RC data
-        JsonObject rcJson = jsonDoc.createNestedObject("rc");
-        rcJson["throttle"] = currentWebData.rc.throttle;
-        rcJson["yaw"] = currentWebData.rc.yaw;
-        rcJson["pitch"] = currentWebData.rc.pitch;
-        rcJson["roll"] = currentWebData.rc.roll;
-        
-        // Add aux channels if available
-        if (currentWebData.rc.Naux > 0 && currentWebData.rc.aux != nullptr) {
-            JsonArray auxJson = rcJson.createNestedArray("aux");
-            for (int i = 0; i < currentWebData.rc.Naux; i++) {
-                auxJson.add(currentWebData.rc.aux[i]);
-            }
-        }
-        
-        // Add sensors data
-        JsonObject sensorsJson = jsonDoc.createNestedObject("sensors");
-        JsonArray distancesJson = sensorsJson.createNestedArray("distances");
-        JsonArray statusJson = sensorsJson.createNestedArray("status");
-        
-        for (int i = 0; i < COUNT_SENSORS; i++) {
-            distancesJson.add(currentWebData.sensorDistances[i]);
-            statusJson.add(currentWebData.sensorStatus[i]);
-        }
-        
-        // Add gyro data
-        JsonObject gyroJson = jsonDoc.createNestedObject("gyro");
-        gyroJson["roll"] = currentWebData.gyroRoll;
-        gyroJson["pitch"] = currentWebData.gyroPitch;
-        gyroJson["yaw"] = currentWebData.gyroYaw;
-        
-        // Add timestamps
-        jsonDoc["lastRcUpdate"] = currentWebData.lastRcUpdate;
-        jsonDoc["lastSensorUpdate"] = currentWebData.lastSensorUpdate;
-        
-        // Serialize JSON to string
-        String jsonString;
-        serializeJson(jsonDoc, jsonString);
-        
-        // Send to all clients
-        ws.textAll(jsonString);
-        
-        // Release semaphore
-        xSemaphoreGive(webDataSemaphore);
-    }
-}
-
-// Handle WebSocket events
-void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
-    switch (type) {
-        case WS_EVT_CONNECT:
-            Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
-            break;
-        case WS_EVT_DISCONNECT:
-            Serial.printf("WebSocket client #%u disconnected\n", client->id());
-            break;
-        case WS_EVT_DATA:
-            handleWebSocketMessage(arg, data, len);
-            break;
-        case WS_EVT_PONG:
-        case WS_EVT_ERROR:
-            break;
-    }
-}
-
-// Handle incoming WebSocket messages
-void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
-    // For now, we just receive data, no commands from client
-    // You could add command handling here if needed
-    AwsFrameInfo *info = (AwsFrameInfo*)arg;
-    if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
-        data[len] = 0;
-        Serial.printf("Received WebSocket message: %s\n", (char*)data);
-    }
+// Iniciar tarea de actualizaciones web
+void startWebUpdateTask(int updateIntervalMs) {
+    // Crear parámetro dinámico (se libera en la tarea)
+    int* interval = new int(updateIntervalMs);
+    
+    // Crear tarea dedicada para actualizaciones web
+    xTaskCreatePinnedToCore(
+        webUpdateTask,
+        "WebUpdateTask",
+        4096,               // Stack size
+        (void*)interval,    // Pasar intervalo como parámetro
+        1,                  // Prioridad baja
+        &webUpdateTaskHandle,
+        0                   // Core 1 (app core)
+    );
 }

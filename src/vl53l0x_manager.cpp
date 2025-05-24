@@ -135,6 +135,82 @@ int VL53L0X_Manager::begin() {
     return (sensors_initialized_count > 0) ? 0 : -1; // Retornar 0 si al menos un sensor está habilitado, -1 si ninguno
 }
 
+// --- Reseteo ---
+  // Reset the sensor
+ int VL53L0X_Manager::resetSensor(SensorPosition sensor){
+    #ifdef DEBUG_VL
+        Serial.printf("Reseteando sensor %d...\n", sensor);
+    #endif
+    if(sensors[sensor].sensor_status < 0) {
+        #ifdef DEBUG_VL
+            Serial.printf("Sensor %d no habilitado. No se puede resetear.\n", sensor);    
+        #endif
+        return -1; // Si el sensor no está habilitado, salir de la función
+    }
+    digitalWrite(sensors[sensor].shutdown_pin, LOW); // Poner en reset 
+    delay(50); // Pequeña pausa tras resetear
+    digitalWrite(sensors[sensor].shutdown_pin, HIGH); // Sacar del reset
+    delay(50); // Dar tiempo al sensor para arrancar
+
+    // Pre-check: Ping I2C address 0x29 (default address)
+    Wire.beginTransmission(VL53L0X_DEFAULT_ADDRESS);
+    if (Wire.endTransmission() != 0) {
+        #ifdef DEBUG_VL
+            Serial.printf("ERROR: Sensor (Pos: %d) no detectado en 0x29 tras reset. XSHUT: %d.\n",
+                          static_cast<int>(sensor), sensors[sensor].shutdown_pin);
+        #endif
+        sensors[sensor].sensor_status = -1; // Marcar como no detectado
+        return -1; // Sensor no responde en la dirección por defecto
+    }
+
+    #ifdef DEBUG_VL
+    Serial.printf("Sensor (Pos: %d) detectado en 0x29 (post-reset OK). Re-inicializando con dirección 0x%02X...\n",
+                  static_cast<int>(sensor), sensors[sensor].address);
+    #endif
+
+    // Re-inicializar el sensor con su dirección original.
+    // El método begin() de Adafruit_VL53L0X se encarga de comunicarse en 0x29
+    // y luego cambiar la dirección del sensor a la especificada (sensors[sensor].address).
+    if (!sensors[sensor].psensor->begin(sensors[sensor].address, false, sensors[sensor].pwire,
+                                        sensors[sensor].sensor_config)) {
+        #ifdef DEBUG_VL
+            Serial.printf("ERROR: Fallo en psensor->begin() para sensor (Pos: %d) con dirección 0x%02X tras reset.\n",
+                          static_cast<int>(sensor), sensors[sensor].address);
+        #endif
+        sensors[sensor].sensor_status = -1;
+        return -1; // Fallo al re-inicializar
+    }
+
+    #ifdef DEBUG_VL
+        Serial.printf("Sensor (Pos: %d) re-inicializado por psensor->begin(). Verificando comunicación en nueva dirección 0x%02X.\n", static_cast<int>(sensor), sensors[sensor].address);
+    #endif
+
+    // Verificar si el sensor responde en la nueva dirección asignada
+    Wire.beginTransmission(sensors[sensor].address);
+    byte address_check_error = Wire.endTransmission();
+
+    if (address_check_error == 0) {
+        #ifdef DEBUG_VL
+            Serial.printf("Sensor (Pos: %d) responde correctamente en 0x%02X tras re-inicialización.\n",
+                          static_cast<int>(sensor), sensors[sensor].address);
+        #endif
+        sensors[sensor].sensor_status = 0; // Marcar como inicializado y listo
+        // Si es necesario, aquí se podría restaurar un modo de medición específico que tuviera antes del reset.
+        // Por ejemplo: configureSensorMode(sensor, previously_stored_mode);
+    } else {
+        #ifdef DEBUG_VL
+            Serial.printf("ERROR: Sensor (Pos: %d) no responde en la dirección 0x%02X después de re-inicializar (Error I2C: %d).\n",
+                          static_cast<int>(sensor), sensors[sensor].address, address_check_error);
+        #endif
+        // Aunque psensor->begin() haya devuelto true, la comunicación final falló.
+        // Esto podría indicar un problema en el bus I2C o con el sensor.
+        sensors[sensor].sensor_status = -1;
+        return -1; // No responde en la dirección asignada
+    }
+
+    return 0;
+  }
+
 // --- Configuración ---
 int VL53L0X_Manager::configureSensorMode(SensorPosition sensor, SensorMode mode) {
     // Código para configurar el modo de un sensor específico
@@ -247,11 +323,9 @@ int VL53L0X_Manager::clearInterrupt(SensorPosition sensor) {
 
 bool VL53L0X_Manager::isSensorEnabled(SensorPosition sensor) {
     if(sensors[sensor].sensor_status >= 0) {
-        Serial.printf("Sensor %d está habilitado.\n", sensor);
+        //Serial.printf("Sensor %d está habilitado.\n", sensor);
         return true; // Sensor está habilitado
     } else {
-        Serial.printf("Sensor %d NO está habilitado.\n", sensor);
-
         return false; // Sensor no está habilitado
     }
 }

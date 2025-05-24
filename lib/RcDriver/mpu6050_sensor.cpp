@@ -5,9 +5,8 @@
 // Instancia global
 MPU6050_Manager mpuSensor;
 
-MPU6050_Manager::MPU6050_Manager() : 
-    madgwickFilter(MPU_SAMPLE_RATE) {  // Inicializar filtro Madgwick con la frecuencia correcta
-    
+MPU6050_Manager::MPU6050_Manager() {
+    // Initialize basic variables
     accelX = accelY = accelZ = 0.0f;
     gyroX = gyroY = gyroZ = 0.0f;
     roll = pitch = yaw = 0.0f;
@@ -25,8 +24,10 @@ MPU6050_Manager::MPU6050_Manager() :
     sensorPresent = false;
     isCalibrated = false;
     
-    // Ajustar el filtro Madgwick para máxima precisión
-    madgwickFilter.begin(0.1f);  // Valor que proporciona buen balance
+    // Initialize Madgwick filter with proper parameters
+    madgwickFilter.begin(0.1f);  // Beta value (0.1f is a good default balance)
+    
+    // The sample rate is set later in the begin() method
 }
 
 bool MPU6050_Manager::begin(bool useInterrupts, bool performCalibration, 
@@ -49,6 +50,9 @@ bool MPU6050_Manager::begin(bool useInterrupts, bool performCalibration,
     mpu.setAccelerometerRange(MPU6050_RANGE_4_G);    // Menor rango = mayor precisión
     mpu.setGyroRange(MPU6050_RANGE_250_DEG);         // Menor rango = mayor precisión 
     mpu.setFilterBandwidth(MPU6050_BAND_10_HZ);      // Mejor filtrado de ruido
+    
+    // Set the Madgwick sample rate now that we're initializing
+    madgwickFilter.setSampleFreq(MPU_SAMPLE_RATE);
     
     // Guardar modo de operación
     interruptMode = useInterrupts;
