@@ -1,0 +1,96 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36" version="27.0.9">
+  <diagram name="Página-1" id="Vf6ynIrYwLPlJBTCG3fn">
+    <mxGraphModel dx="951" dy="598" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="RvPRl2GiPRMPeRU3ZX61-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="RvPRl2GiPRMPeRU3ZX61-1" target="RvPRl2GiPRMPeRU3ZX61-3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RvPRl2GiPRMPeRU3ZX61-6" value="RC info" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="RvPRl2GiPRMPeRU3ZX61-5">
+          <mxGeometry x="0.0935" y="-1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RvPRl2GiPRMPeRU3ZX61-1" value="RC Receiver" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="320" y="40" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RvPRl2GiPRMPeRU3ZX61-13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="RvPRl2GiPRMPeRU3ZX61-3" target="RvPRl2GiPRMPeRU3ZX61-11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RvPRl2GiPRMPeRU3ZX61-15" value="Decoded RC data" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="RvPRl2GiPRMPeRU3ZX61-13">
+          <mxGeometry x="-0.2756" y="-1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RvPRl2GiPRMPeRU3ZX61-3" value="RC Driver" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="320" y="210" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RvPRl2GiPRMPeRU3ZX61-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.75;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="RvPRl2GiPRMPeRU3ZX61-7" target="RvPRl2GiPRMPeRU3ZX61-3">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="450" y="160" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RvPRl2GiPRMPeRU3ZX61-7" value="RC strategy" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="470" y="140" width="120" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="RvPRl2GiPRMPeRU3ZX61-14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="RvPRl2GiPRMPeRU3ZX61-11" target="RvPRl2GiPRMPeRU3ZX61-12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RvPRl2GiPRMPeRU3ZX61-16" value="Encoded RC data" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="RvPRl2GiPRMPeRU3ZX61-14">
+          <mxGeometry x="0.0133" y="1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RvPRl2GiPRMPeRU3ZX61-11" value="Collision Avoidance Logic" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="320" y="320" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RvPRl2GiPRMPeRU3ZX61-12" value="Flight Controller" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="320" y="430" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RvPRl2GiPRMPeRU3ZX61-19" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=1;entryY=0.25;entryDx=0;entryDy=0;" edge="1" parent="1" source="RvPRl2GiPRMPeRU3ZX61-17" target="RvPRl2GiPRMPeRU3ZX61-11">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="640" y="350" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="640" y="335" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RvPRl2GiPRMPeRU3ZX61-22" value="Distance data" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="RvPRl2GiPRMPeRU3ZX61-19">
+          <mxGeometry x="-0.8504" y="1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RvPRl2GiPRMPeRU3ZX61-17" value="Distance sensors driver" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="560" y="250" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="RvPRl2GiPRMPeRU3ZX61-20" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="RvPRl2GiPRMPeRU3ZX61-18" target="RvPRl2GiPRMPeRU3ZX61-11">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="640" y="350" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RvPRl2GiPRMPeRU3ZX61-21" value="Orientation data" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="RvPRl2GiPRMPeRU3ZX61-20">
+          <mxGeometry x="-0.7968" y="1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RvPRl2GiPRMPeRU3ZX61-18" value="IMU driver" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="560" y="390" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="RvPRl2GiPRMPeRU3ZX61-24" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;startArrow=classic;startFill=1;" edge="1" parent="1" source="RvPRl2GiPRMPeRU3ZX61-23" target="RvPRl2GiPRMPeRU3ZX61-11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RvPRl2GiPRMPeRU3ZX61-26" value="Control data" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="RvPRl2GiPRMPeRU3ZX61-24">
+          <mxGeometry x="0.0952" y="1" relative="1" as="geometry">
+            <mxPoint y="1" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RvPRl2GiPRMPeRU3ZX61-23" value="Flight behavior" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="320" width="150" height="60" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
