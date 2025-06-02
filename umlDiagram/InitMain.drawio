@@ -1,9 +1,90 @@
-<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36" version="27.0.9">
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36" version="27.1.1">
   <diagram name="Página-1" id="ofcytLFZuUjT-GYb-jVh">
-    <mxGraphModel>
+    <mxGraphModel dx="1188" dy="748" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="A4AbdAKLFQwMQvVpHB3N-1" target="A4AbdAKLFQwMQvVpHB3N-3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-1" value="Begin serial" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="354" y="20" width="156" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-16" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="A4AbdAKLFQwMQvVpHB3N-3" target="A4AbdAKLFQwMQvVpHB3N-4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-3" value="Begin I2C" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="354" y="90" width="156" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-18" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="A4AbdAKLFQwMQvVpHB3N-4" target="A4AbdAKLFQwMQvVpHB3N-5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-4" value="Create rcData Semaphone" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="354" y="160" width="156" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-19" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="A4AbdAKLFQwMQvVpHB3N-5" target="A4AbdAKLFQwMQvVpHB3N-6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-5" value="Initiate RcDriver" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="354" y="220" width="156" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-20" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="A4AbdAKLFQwMQvVpHB3N-6" target="A4AbdAKLFQwMQvVpHB3N-7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-6" value="Init distance sensor driver" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="354" y="280" width="156" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-21" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="A4AbdAKLFQwMQvVpHB3N-7" target="A4AbdAKLFQwMQvVpHB3N-8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-7" value="Config distance interrupts" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="354" y="340" width="156" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-22" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="A4AbdAKLFQwMQvVpHB3N-8" target="A4AbdAKLFQwMQvVpHB3N-13">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-8" value="Assign Distance driver watchdog memory" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="354" y="400" width="156" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-24" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="A4AbdAKLFQwMQvVpHB3N-9" target="A4AbdAKLFQwMQvVpHB3N-10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-9" value="Create WebData semaphore" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="354" y="520" width="156" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-25" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="A4AbdAKLFQwMQvVpHB3N-10" target="A4AbdAKLFQwMQvVpHB3N-11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-10" value="Init WebData" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="354" y="580" width="156" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-27" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="A4AbdAKLFQwMQvVpHB3N-11" target="A4AbdAKLFQwMQvVpHB3N-12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-11" value="Init Web Server" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="354" y="640" width="156" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-28" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="A4AbdAKLFQwMQvVpHB3N-12" target="A4AbdAKLFQwMQvVpHB3N-14">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-12" value="Init Web Server" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="354" y="700" width="156" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-23" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="A4AbdAKLFQwMQvVpHB3N-13" target="A4AbdAKLFQwMQvVpHB3N-9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-13" value="Initiate IMU Driver" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="354" y="460" width="156" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-30" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="A4AbdAKLFQwMQvVpHB3N-14" target="A4AbdAKLFQwMQvVpHB3N-29">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-14" value="Create Realtime Tasks" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="354" y="760" width="156" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-29" value="System ready" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="354" y="820" width="156" height="40" as="geometry" />
+        </mxCell>
       </root>
     </mxGraphModel>
   </diagram>
