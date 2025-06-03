@@ -1,6 +1,6 @@
 <mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36" version="27.1.1">
   <diagram name="Página-1" id="ofcytLFZuUjT-GYb-jVh">
-    <mxGraphModel dx="1188" dy="748" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+    <mxGraphModel dx="228" dy="468" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -50,31 +50,27 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="A4AbdAKLFQwMQvVpHB3N-9" value="Create WebData semaphore" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="620" y="90" width="156" height="40" as="geometry" />
+          <mxGeometry x="620" y="150" width="156" height="40" as="geometry" />
         </mxCell>
         <mxCell id="A4AbdAKLFQwMQvVpHB3N-25" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="A4AbdAKLFQwMQvVpHB3N-10" target="A4AbdAKLFQwMQvVpHB3N-11">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="A4AbdAKLFQwMQvVpHB3N-10" value="Init WebData" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="620" y="150" width="156" height="40" as="geometry" />
-        </mxCell>
-        <mxCell id="A4AbdAKLFQwMQvVpHB3N-27" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="A4AbdAKLFQwMQvVpHB3N-11" target="A4AbdAKLFQwMQvVpHB3N-12">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="A4AbdAKLFQwMQvVpHB3N-11" value="Init Web Server" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
           <mxGeometry x="620" y="210" width="156" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="A4AbdAKLFQwMQvVpHB3N-28" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="A4AbdAKLFQwMQvVpHB3N-12" target="A4AbdAKLFQwMQvVpHB3N-14">
-          <mxGeometry relative="1" as="geometry" />
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-27" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="A4AbdAKLFQwMQvVpHB3N-11">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="698" y="330" as="targetPoint" />
+          </mxGeometry>
         </mxCell>
-        <mxCell id="A4AbdAKLFQwMQvVpHB3N-12" value="Init Web Server" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+        <mxCell id="A4AbdAKLFQwMQvVpHB3N-11" value="Init Web Server" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
           <mxGeometry x="620" y="270" width="156" height="40" as="geometry" />
         </mxCell>
         <mxCell id="A4AbdAKLFQwMQvVpHB3N-23" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="A4AbdAKLFQwMQvVpHB3N-13" target="A4AbdAKLFQwMQvVpHB3N-9">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="A4AbdAKLFQwMQvVpHB3N-13" value="Initiate IMU Driver" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="620" y="30" width="156" height="40" as="geometry" />
+          <mxGeometry x="620" y="90" width="156" height="40" as="geometry" />
         </mxCell>
         <mxCell id="A4AbdAKLFQwMQvVpHB3N-30" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="A4AbdAKLFQwMQvVpHB3N-14" target="A4AbdAKLFQwMQvVpHB3N-29">
           <mxGeometry relative="1" as="geometry" />
