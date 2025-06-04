@@ -11,7 +11,7 @@
         </mxCell>
         <mxCell id="hriZjnsfSBFA5nE4BhqF-3" value="for N = 0 to N = 5" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="hriZjnsfSBFA5nE4BhqF-2">
           <mxGeometry x="0.1129" y="-2" relative="1" as="geometry">
-            <mxPoint x="-12" y="-12" as="offset" />
+            <mxPoint x="-7" y="-12" as="offset" />
           </mxGeometry>
         </mxCell>
         <mxCell id="hriZjnsfSBFA5nE4BhqF-1" value="All shutdowns pinds = LOW" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
