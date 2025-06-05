@@ -1,9 +1,66 @@
 <mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36" version="27.1.4">
   <diagram name="Página-1" id="qU9S0WPeDxovbg02cj60">
-    <mxGraphModel>
+    <mxGraphModel dx="983" dy="619" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
+        <mxCell id="xGIeMJBG01ZFiHaeN9F7-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="xGIeMJBG01ZFiHaeN9F7-1" target="xGIeMJBG01ZFiHaeN9F7-2">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="580" y="130" />
+              <mxPoint x="445" y="130" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="xGIeMJBG01ZFiHaeN9F7-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="570" y="109" as="sourcePoint" />
+            <mxPoint x="725" y="259" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="580" y="109" />
+              <mxPoint x="580" y="130" />
+              <mxPoint x="725" y="130" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="xGIeMJBG01ZFiHaeN9F7-1" value="Raw Sensor Data&lt;div&gt;Accelerometer + Gyroscope&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="525" y="50" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="xGIeMJBG01ZFiHaeN9F7-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="xGIeMJBG01ZFiHaeN9F7-2" target="xGIeMJBG01ZFiHaeN9F7-3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="xGIeMJBG01ZFiHaeN9F7-2" value="Madwick Fusion Algorithm" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="360" y="160" width="170" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="xGIeMJBG01ZFiHaeN9F7-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="xGIeMJBG01ZFiHaeN9F7-3" target="xGIeMJBG01ZFiHaeN9F7-8">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="520" y="340" />
+              <mxPoint x="585" y="340" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="xGIeMJBG01ZFiHaeN9F7-3" value="Quaternion Representation" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="360" y="230" width="170" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="xGIeMJBG01ZFiHaeN9F7-9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="xGIeMJBG01ZFiHaeN9F7-6" target="xGIeMJBG01ZFiHaeN9F7-8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="xGIeMJBG01ZFiHaeN9F7-6" value="Linear Acceleration&lt;div&gt;Gravity Removed&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="640" y="260" width="170" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="xGIeMJBG01ZFiHaeN9F7-8" value="OrientationData Structure" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="500" y="400" width="170" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="xGIeMJBG01ZFiHaeN9F7-13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="xGIeMJBG01ZFiHaeN9F7-11" target="xGIeMJBG01ZFiHaeN9F7-8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="xGIeMJBG01ZFiHaeN9F7-11" value="Euler Angles" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="330" y="300" width="170" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="xGIeMJBG01ZFiHaeN9F7-12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.423;entryY=-0.026;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="xGIeMJBG01ZFiHaeN9F7-3" target="xGIeMJBG01ZFiHaeN9F7-11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
       </root>
     </mxGraphModel>
   </diagram>
