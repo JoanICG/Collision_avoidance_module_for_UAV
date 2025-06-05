@@ -29,7 +29,7 @@
         <mxCell id="xGIeMJBG01ZFiHaeN9F7-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="xGIeMJBG01ZFiHaeN9F7-2" target="xGIeMJBG01ZFiHaeN9F7-3">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="xGIeMJBG01ZFiHaeN9F7-2" value="Madwick Fusion Algorithm" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+        <mxCell id="xGIeMJBG01ZFiHaeN9F7-2" value="Madwgick Fusion Algorithm" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
           <mxGeometry x="360" y="160" width="170" height="50" as="geometry" />
         </mxCell>
         <mxCell id="xGIeMJBG01ZFiHaeN9F7-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="xGIeMJBG01ZFiHaeN9F7-3" target="xGIeMJBG01ZFiHaeN9F7-8">
